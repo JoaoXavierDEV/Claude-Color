@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ClaudeLamp.App/ClaudeLamp.App.csproj" />
+    <Project Path="src/ClaudeLamp.Core/ClaudeLamp.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ClaudeLamp.Core.Tests/ClaudeLamp.Core.Tests.csproj" />
+  </Folder>
+</Solution>
