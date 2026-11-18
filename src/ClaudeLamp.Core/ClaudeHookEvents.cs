@@ -31,6 +31,8 @@ public static class EventMapper
                     _ => Get("hook_event_name") == "PermissionRequest" ? ClaudeEvents.Permission : null,
                 },
                 "Notification" => MapNotification(Get("notification_type"), Get("message")),
+                // Uma ferramenta terminou: se havia algo aguardando você, você já agiu.
+                "PostToolUse" or "PostToolUseFailure" => ClaudeEvents.Resumed,
                 _ => null,
             };
         }
@@ -55,6 +57,7 @@ public static class SignalRunner
     /// <summary>Registra o sinal e devolve a geração dele (ou null se nada a fazer).</summary>
     public static long? Begin(LampConfig cfg, string evt)
     {
+        if (evt == ClaudeEvents.Resumed) return BeginResume(cfg);
         if (!cfg.SignalsEnabled) { Storage.Log($"sinal '{evt}' ignorado: sinais pausados"); return null; }
         if (!cfg.Events.TryGetValue(evt, out var sig) || !sig.Enabled) { Storage.Log($"sinal '{evt}' desativado"); return null; }
         bool skip = false;
@@ -71,9 +74,53 @@ public static class SignalRunner
             s.SignalGeneration++;
             s.LastSignal = evt;
             s.LastSignalAt = DateTimeOffset.Now;
+            if (evt == ClaudeEvents.Working) s.WorkingSince = sig.HoldWhileWorking ? DateTimeOffset.Now : null;
+            else if (evt is ClaudeEvents.Done or ClaudeEvents.Idle) s.WorkingSince = null;
+            s.WaitingFor = sig.WaitForUser && SignalConfig.SupportsWaitForUser(evt) ? evt : null;
         });
         if (skip) { Storage.Log($"sinal '{evt}' ignorado: logo após '{state.LastSignal}'"); return null; }
         return state.SignalGeneration;
+    }
+
+    /// <summary>
+    /// PostToolUse: só faz algo se um sinal estava aguardando sua intervenção (o hook dispara a cada
+    /// ferramenta, então sem espera ele sai em silêncio).
+    /// </summary>
+    private static long? BeginResume(LampConfig cfg)
+    {
+        if (!cfg.SignalsEnabled) return null;
+        string? waited = null;
+        var state = Storage.UpdateState(s =>
+        {
+            if (s.WaitingFor is null) return;
+            waited = s.WaitingFor;
+            s.WaitingFor = null;
+            s.SignalGeneration++;
+            s.LastSignal = ClaudeEvents.Resumed;
+            s.LastSignalAt = DateTimeOffset.Now;
+        });
+        if (waited is null) return null;
+        Storage.Log($"intervenção concluída em '{waited}'");
+        return state.SignalGeneration;
+    }
+
+    /// <summary>Depois de uma espera: volta para "trabalhando" (se ativo) ou para o estado normal.</summary>
+    private static async Task BackToNormalOrWorkingAsync(LampConfig cfg, IReadOnlyList<ILightTarget> targets,
+        Func<Func<ILightTarget, Task>, Task> all, string evt, long generation, CancellationToken ct)
+    {
+        if (Storage.LoadState().IsWorking(cfg))
+        {
+            var working = cfg.Events[ClaudeEvents.Working];
+            var workingColor = RgbColor.Parse(working.Color);
+            bool pc = working.UsesPcRgb(ClaudeEvents.Working);
+            await all(t => t.IsLamp || pc ? t.ShowAsync(workingColor, working.Brightness, ct) : t.ReleaseAsync(ct));
+            Storage.Log($"'{evt}' #{generation}: voltou para 'trabalhando'");
+        }
+        else
+        {
+            await all(t => t.ReleaseAsync(ct));
+            Storage.Log($"estado normal restaurado após '{evt}' #{generation}");
+        }
     }
 
     /// <summary>Só a lâmpada (usado quando o app da bandeja não está aberto).</summary>
@@ -90,8 +137,6 @@ public static class SignalRunner
     public static async Task RunAsync(LampConfig cfg, string evt, long generation, IReadOnlyList<ILightTarget> targets,
         CancellationToken ct = default, Func<bool>? isCurrent = null)
     {
-        var sig = cfg.Events[evt];
-        var color = RgbColor.Parse(sig.Color);
         bool Current() => isCurrent?.Invoke() ?? Storage.LoadState().SignalGeneration == generation;
 
         Task All(Func<ILightTarget, Task> action) => Each(targets, action);
@@ -104,6 +149,15 @@ public static class SignalRunner
                 Storage.Log($"sinal '{evt}' #{generation}: {t.Name} falhou: {ex.Message}");
             }
         }));
+
+        if (evt == ClaudeEvents.Resumed)
+        {
+            if (Current()) await BackToNormalOrWorkingAsync(cfg, targets, All, evt, generation, ct);
+            return;
+        }
+
+        var sig = cfg.Events[evt];
+        var color = RgbColor.Parse(sig.Color);
 
         // Dispositivos lentos não piscam: recebem a cor final já no início.
         var blinkers = targets.Where(t => t.Blinks).ToList();
@@ -121,6 +175,39 @@ public static class SignalRunner
         await All(t => t.ShowAsync(color, sig.Brightness, ct));
         Storage.Log($"sinal '{evt}' #{generation} aplicado ({sig.Color}) em {string.Join(", ", targets.Select(t => t.Name))}");
 
+        // "Trabalhando" com manter: fica até o próximo evento; só solta sozinho pelo limite de segurança.
+        if (evt == ClaudeEvents.Working && sig.HoldWhileWorking)
+        {
+            await Task.Delay(SignalConfig.MaxWorkingHold, ct);
+            if (!Current()) return;
+            await All(t => t.ReleaseAsync(ct));
+            Storage.Log($"'working' #{generation}: limite de {SignalConfig.MaxWorkingHold.TotalMinutes} min, estado normal restaurado");
+            return;
+        }
+
+        // "Aguardar intervenção": fica até o PostToolUse/nova mensagem; só solta sozinho pelo limite de segurança.
+        if (sig.WaitForUser && SignalConfig.SupportsWaitForUser(evt))
+        {
+            await Task.Delay(SignalConfig.MaxWorkingHold, ct);
+            if (!Current()) return;
+            Storage.UpdateState(s => { if (s.WaitingFor == evt) s.WaitingFor = null; });
+            await BackToNormalOrWorkingAsync(cfg, targets, All, evt, generation, ct);
+            return;
+        }
+
+        if (sig.RestoreAfterSeconds is > 0 and var backSecs && evt != ClaudeEvents.Done && Storage.LoadState().IsWorking(cfg))
+        {
+            // O Claude ainda está trabalhando: depois do sinal, volta para a cor de "trabalhando".
+            await Task.Delay(TimeSpan.FromSeconds(backSecs), ct);
+            if (!Current()) return;
+            var working = cfg.Events[ClaudeEvents.Working];
+            var workingColor = RgbColor.Parse(working.Color);
+            bool pc = working.UsesPcRgb(ClaudeEvents.Working);
+            await All(t => t.IsLamp || pc ? t.ShowAsync(workingColor, working.Brightness, ct) : t.ReleaseAsync(ct));
+            Storage.Log($"'{evt}' #{generation}: voltou para 'trabalhando'");
+            return;
+        }
+
         if (sig.RestoreAfterSeconds is > 0 and var secs)
         {
             await Task.Delay(TimeSpan.FromSeconds(secs), ct);
@@ -135,6 +222,8 @@ public static class SignalRunner
         Storage.UpdateState(s =>
         {
             s.Manual = manual;
+            s.WorkingSince = null;
+            s.WaitingFor = null;
             s.SignalGeneration++;
             s.LastSignal = "manual";
             s.LastSignalAt = DateTimeOffset.Now;

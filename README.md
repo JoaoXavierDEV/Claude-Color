@@ -18,8 +18,15 @@ Feito em **.NET 10 / Windows Forms**, para Windows. É um único executável, qu
 | Terminou | `Stop` | 🟢 verde, volta à sua cor após 60 s |
 | Trabalhando | `UserPromptSubmit` | 🔵 azul fraco |
 | Ocioso (esperando você) | `Notification` (`idle_prompt`) | desativado por padrão |
+| *(interno)* você agiu | `PostToolUse` | encerra o "aguardar intervenção" |
 
 Cor, brilho, número de piscadas, intervalo e tempo para restaurar podem ser mudados por evento, na aba **Eventos do Claude**.
+
+Na coluna **Manter** da mesma aba há duas opções:
+- **Trabalhando → "enquanto o Claude trabalha"**: a cor fica acesa do envio da sua mensagem até o Claude terminar (`Stop`). Perguntas, permissões e planos no meio mostram a cor deles e depois voltam para a de trabalhando.
+- **Pergunta, plano, permissão e ocioso → "aguardar intervenção"**: a cor fica acesa até você agir (responder, aprovar, permitir ou mandar outra mensagem), em vez de restaurar depois de um tempo fixo. A intervenção é detectada pelo hook `PostToolUse`, disparado quando a ferramenta conclui.
+
+As duas opções também se encerram por uma mudança manual sua e por um limite de segurança de 30 min, caso o Claude feche sem avisar.
 
 ## Compatibilidade
 
@@ -110,7 +117,7 @@ Detalhes:
 - **Bandeja**: clique esquerdo liga/desliga; clique direito mostra cores, branco, brilho e *Sinais do Claude Code* (para pausar os sinais). Um duplo clique abre as configurações. O ícone assume a cor do último sinal.
 - **Janela**:
   - **Controle**: cor, brilho e branco.
-  - **Eventos do Claude**: uma linha por evento, com botão *Testar*.
+  - **Eventos do Claude**: uma linha por evento, com *Manter* (enquanto trabalha / aguardar intervenção) e o botão *Testar*, que sempre volta ao normal em 5 s.
   - **Dispositivos RGB**: iCUE, G HUB, Mystic Light e OpenRGB (com lista de dispositivos), com *Detectar* e *Testar*.
   - **Conexão**: Device ID, IP, local key e protocolo.
   - **Sistema**: hooks, *Reiniciar como administrador*, *Iniciar com o Windows* (Tarefa Agendada elevada), log e config.

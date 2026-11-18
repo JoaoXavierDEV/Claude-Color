@@ -40,6 +40,9 @@ internal static class LampService
     {
         cfg.SignalsEnabled = true;
         cfg.Events[evt].Enabled = true;
+        // O teste nunca segura: sem "manter enquanto trabalha" nem "aguardar intervenção".
+        cfg.Events[evt].HoldWhileWorking = false;
+        cfg.Events[evt].WaitForUser = false;
         // No teste, restaura em até 5 s para não deixar tudo na cor do evento.
         if (cfg.Events[evt].RestoreAfterSeconds is null or 0 or > 5) cfg.Events[evt].RestoreAfterSeconds = 5;
         if (SignalRunner.Begin(cfg, evt) is not { } gen) return;

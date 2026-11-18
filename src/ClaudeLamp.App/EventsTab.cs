@@ -22,6 +22,7 @@ internal sealed class EventsTab : UserControl
     private sealed class RowControls
     {
         public required CheckBox Enabled, PcRgb;
+        public CheckBox? Hold;
         public required Button Color;
         public required NumericUpDown Brightness, Blink, Interval, Restore;
         public required Button Test;
@@ -36,8 +37,8 @@ internal sealed class EventsTab : UserControl
         var root = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
         root.Controls.Add(_signalsEnabled);
 
-        var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 9, Margin = new Padding(0) };
-        string[] headers = ["Evento", "Ativo", "PC RGB", "Cor", "Brilho %", "Piscadas", "Intervalo ms", "Restaurar após s", ""];
+        var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 10, Margin = new Padding(0) };
+        string[] headers = ["Evento", "Ativo", "PC RGB", "Cor", "Brilho %", "Piscadas", "Intervalo ms", "Restaurar após s", "", "Manter"];
         foreach (var h in headers) grid.Controls.Add(Ui.Label(h, bold: true));
 
         foreach (var evt in Order)
@@ -59,9 +60,17 @@ internal sealed class EventsTab : UserControl
 
             grid.Controls.Add(Ui.Label(DisplayName(evt)));
             grid.Controls.AddRange([row.Enabled, row.PcRgb, row.Color, row.Brightness, row.Blink, row.Interval, row.Restore, row.Test]);
+            if (evt == ClaudeEvents.Working || SignalConfig.SupportsWaitForUser(evt))
+            {
+                var text = evt == ClaudeEvents.Working ? "enquanto o Claude trabalha" : "aguardar intervenção";
+                row.Hold = new CheckBox { Text = text, AutoSize = true, Margin = new Padding(6, 8, 3, 3) };
+                row.Hold.CheckedChanged += (_, _) => row.Restore.Enabled = !row.Hold.Checked;
+                grid.Controls.Add(row.Hold);
+            }
+            else grid.Controls.Add(new Label { AutoSize = true });
         }
         root.Controls.Add(grid);
-        root.Controls.Add(Ui.Label("\"PC RGB\" = também acende RAM, placa-mãe, teclado e mouse (aba Dispositivos RGB).\n\"Restaurar após\" = segundos até voltar à cor escolhida em Controle (0 = fica na cor do evento)."));
+        root.Controls.Add(Ui.Label("\"PC RGB\" = também acende RAM, placa-mãe, teclado e mouse (aba Dispositivos RGB).\n\"Manter\" = a cor de trabalhando fica do envio da mensagem até o Claude terminar; perguntas e permissões no meio voltam para ela; \"aguardar intervenção\" = a cor fica até você responder, aprovar ou permitir.\n\"Restaurar após\" = segundos até voltar à cor escolhida em Controle (0 = fica na cor do evento)."));
         root.Controls.Add(Ui.Row(
             Ui.Button("Salvar", (_, _) => Save(), 90),
             Ui.Button("Restaurar padrões", (_, _) => { Show(LampConfig.DefaultEvents(), _signalsEnabled.Checked); _status.Text = "Padrões carregados (clique Salvar)."; })));
@@ -87,6 +96,7 @@ internal sealed class EventsTab : UserControl
             var s = events.TryGetValue(evt, out var v) ? v : new SignalConfig();
             row.Enabled.Checked = s.Enabled;
             row.PcRgb.Checked = s.UsesPcRgb(evt);
+            if (row.Hold is not null) row.Hold.Checked = evt == ClaudeEvents.Working ? s.HoldWhileWorking : s.WaitForUser;
             row.Color.BackColor = Ui.ParseOr(s.Color, Color.White);
             row.Color.Tag = Ui.ToRgb(row.Color.BackColor).ToHex();
             row.Brightness.Value = Math.Clamp(s.Brightness, 1, 100);
@@ -115,6 +125,8 @@ internal sealed class EventsTab : UserControl
             {
                 Enabled = row.Enabled.Checked,
                 PcRgb = row.PcRgb.Checked,
+                HoldWhileWorking = evt == ClaudeEvents.Working && (row.Hold?.Checked ?? false),
+                WaitForUser = evt != ClaudeEvents.Working && (row.Hold?.Checked ?? false),
                 Color = (string)row.Color.Tag!,
                 Brightness = (int)row.Brightness.Value,
                 Blink = (int)row.Blink.Value,

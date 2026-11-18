@@ -21,7 +21,7 @@ public static class SignalPipe
     {
         evt = ""; gen = 0;
         var parts = line?.Trim().Split(' ');
-        if (parts is not { Length: 2 } || !ClaudeEvents.All.Contains(parts[0]) || !long.TryParse(parts[1], out gen)) return false;
+        if (parts is not { Length: 2 } || !(ClaudeEvents.All.Contains(parts[0]) || parts[0] == ClaudeEvents.Resumed) || !long.TryParse(parts[1], out gen)) return false;
         evt = parts[0];
         return true;
     }

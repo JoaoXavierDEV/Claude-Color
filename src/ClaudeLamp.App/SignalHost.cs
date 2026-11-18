@@ -76,7 +76,9 @@ internal sealed class SignalHost : IDisposable
         {
             if (cfg.IsConfigured) targets.Add(lamp = new TuyaLampTarget(cfg));
 
-            if (cfg.Events.TryGetValue(evt, out var sig) && sig.UsesPcRgb(evt))
+            if (evt == ClaudeEvents.Resumed)
+                targets.AddRange(PcRgb.Targets(cfg.PcRgb)); // volta para "trabalhando" ou devolve o PC
+            else if (cfg.Events.TryGetValue(evt, out var sig) && sig.UsesPcRgb(evt))
                 targets.AddRange(PcRgb.Targets(cfg.PcRgb));
             else
                 await PcRgb.ReleaseAllAsync(); // este evento não usa o RGB do PC: devolve ao perfil normal

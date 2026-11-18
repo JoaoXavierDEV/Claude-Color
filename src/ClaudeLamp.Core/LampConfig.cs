@@ -18,6 +18,22 @@ public sealed class SignalConfig
     public int? RestoreAfterSeconds { get; set; }
     /// <summary>Também acende o RGB do PC (RAM, placa-mãe, teclado, mouse). Null = padrão do evento.</summary>
     public bool? PcRgb { get; set; }
+    /// <summary>
+    /// Só para "trabalhando": mantém a cor do momento em que você envia a mensagem até o Claude terminar.
+    /// Perguntas/permissões/planos no meio voltam para a cor de trabalhando em vez do estado normal.
+    /// </summary>
+    public bool HoldWhileWorking { get; set; }
+    /// <summary>
+    /// Para pergunta, plano, permissão e ocioso: mantém a cor até você agir (responder, aprovar, permitir
+    /// ou mandar outra mensagem), em vez de restaurar após um tempo fixo.
+    /// </summary>
+    public bool WaitForUser { get; set; }
+
+    public static bool SupportsWaitForUser(string evt) =>
+        evt is ClaudeEvents.Question or ClaudeEvents.Plan or ClaudeEvents.Permission or ClaudeEvents.Idle;
+
+    /// <summary>Limite de segurança caso o Claude feche sem enviar "Stop".</summary>
+    public static readonly TimeSpan MaxWorkingHold = TimeSpan.FromMinutes(30);
 
     public static bool DefaultPcRgb(string evt) => evt is not (ClaudeEvents.Working or ClaudeEvents.Idle);
     public bool UsesPcRgb(string evt) => PcRgb ?? DefaultPcRgb(evt);
@@ -88,6 +104,8 @@ public static class ClaudeEvents
     public const string Permission = "permission";
     public const string Idle = "idle";
     public const string Done = "done";
+    /// <summary>Interno: o Claude retomou depois de uma intervenção sua (hook PostToolUse).</summary>
+    public const string Resumed = "resumed";
 
     public static readonly string[] All = [Working, Question, Plan, Permission, Idle, Done];
 }
@@ -111,6 +129,14 @@ public sealed class RuntimeState
     public long SignalGeneration { get; set; }
     public string? LastSignal { get; set; }
     public DateTimeOffset? LastSignalAt { get; set; }
+    /// <summary>Quando o Claude começou a trabalhar (só com "manter enquanto trabalha"); null = não está trabalhando.</summary>
+    public DateTimeOffset? WorkingSince { get; set; }
+    /// <summary>Evento aguardando sua intervenção (pergunta, plano, permissão...); null = nenhum.</summary>
+    public string? WaitingFor { get; set; }
+
+    public bool IsWorking(LampConfig cfg) =>
+        WorkingSince is { } since && DateTimeOffset.Now - since < SignalConfig.MaxWorkingHold &&
+        cfg.Events.TryGetValue(ClaudeEvents.Working, out var w) && w.Enabled && w.HoldWhileWorking;
 }
 
 public static class Storage

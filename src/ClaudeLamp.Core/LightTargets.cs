@@ -11,6 +11,9 @@ public interface ILightTarget : IDisposable
     /// </summary>
     bool Blinks => true;
 
+    /// <summary>True só para a lâmpada (as regras de "PC RGB" não se aplicam a ela).</summary>
+    bool IsLamp => false;
+
     /// <param name="brightness">1–100.</param>
     Task ShowAsync(RgbColor color, int brightness, CancellationToken ct = default);
 
@@ -24,6 +27,8 @@ public sealed class TuyaLampTarget(LampConfig cfg) : ILightTarget
     private readonly LampClient _lamp = new(cfg);
 
     public string Name => "Lâmpada";
+
+    public bool IsLamp => true;
 
     public Task ShowAsync(RgbColor color, int brightness, CancellationToken ct = default) =>
         _lamp.SetColorAsync(color, brightness, ct);

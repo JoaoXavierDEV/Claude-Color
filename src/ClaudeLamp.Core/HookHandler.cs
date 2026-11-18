@@ -25,7 +25,8 @@ public static class HookHandler
         try
         {
             var evt = EventMapper.Map(input);
-            Storage.Log($"hook: {Summarize(input)} → {evt ?? "(ignorado)"}");
+            // PostToolUse dispara a cada ferramenta: só registra no log quando algo aguardava você.
+            if (evt != ClaudeEvents.Resumed) Storage.Log($"hook: {Summarize(input)} → {evt ?? "(ignorado)"}");
             if (evt is null) return null;
 
             var cfg = Storage.LoadConfig();

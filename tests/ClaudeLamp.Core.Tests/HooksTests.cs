@@ -57,7 +57,7 @@ public class HooksInstallerTests : IDisposable
         inst.Install(Exe);
         inst.Install(Exe);
         var root = JsonNode.Parse(File.ReadAllText(Settings))!;
-        foreach (var evt in new[] { "UserPromptSubmit", "Stop", "Notification", "PreToolUse" })
+        foreach (var evt in new[] { "UserPromptSubmit", "Stop", "Notification", "PreToolUse", "PostToolUse" })
             Assert.Single(root["hooks"]![evt]!.AsArray());
         Assert.Equal(HooksStatus.Installed, inst.GetStatus(Exe));
         Assert.Equal($"\"{Exe}\" hook", root["hooks"]!["Stop"]![0]!["hooks"]![0]!["command"]!.GetValue<string>());
@@ -163,6 +163,7 @@ public class SignalPipeTests
     }
 }
 
+[Collection("Storage")] // usa o state.json compartilhado: não roda em paralelo com HookHandlerTests
 public class MultiTargetSignalTests
 {
     private sealed class FakeTarget(string name, bool fail = false) : ILightTarget
@@ -217,6 +218,103 @@ public class MultiTargetSignalTests
         await SignalRunner.RunAsync(cfg, ClaudeEvents.Done, 1, [fast, slow], isCurrent: () => true);
         Assert.Equal(7, fast.Calls.Count(c => c.StartsWith("show"))); // 3 piscadas × 2 + final
         Assert.Equal(["show 90", "show 90", "release"], slow.Calls);   // início + final, sem o brilho 1
+    }
+
+    private sealed class KindTarget(bool lamp) : ILightTarget
+    {
+        public List<string> Calls { get; } = [];
+        public string Name => lamp ? "lamp" : "pc";
+        public bool IsLamp => lamp;
+        public Task ShowAsync(RgbColor color, int brightness, CancellationToken ct = default) { Calls.Add($"show {color.ToHex()}"); return Task.CompletedTask; }
+        public Task ReleaseAsync(CancellationToken ct = default) { Calls.Add("release"); return Task.CompletedTask; }
+        public void Dispose() { }
+    }
+
+    [Fact]
+    public async Task Working_with_hold_does_not_restore()
+    {
+        var lamp = new KindTarget(lamp: true);
+        var cfg = new LampConfig();
+        cfg.Events[ClaudeEvents.Working] = new SignalConfig { Color = "#0040FF", RestoreAfterSeconds = 1, HoldWhileWorking = true };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            SignalRunner.RunAsync(cfg, ClaudeEvents.Working, 1, [lamp], cts.Token, isCurrent: () => true));
+        Assert.Equal(["show #0040FF"], lamp.Calls); // segurou: sem release em 2 s, apesar de "restaurar após 1 s"
+    }
+
+    [Fact]
+    public async Task Signal_during_work_returns_to_working_color()
+    {
+        var cfg = new LampConfig();
+        cfg.Events[ClaudeEvents.Working] = new SignalConfig { Color = "#0040FF", HoldWhileWorking = true, PcRgb = false };
+        cfg.Events[ClaudeEvents.Question] = new SignalConfig { Color = "#FFC000", RestoreAfterSeconds = 1 };
+        Storage.UpdateState(s => s.WorkingSince = DateTimeOffset.Now);
+        try
+        {
+            var lamp = new KindTarget(lamp: true);
+            var pc = new KindTarget(lamp: false);
+            await SignalRunner.RunAsync(cfg, ClaudeEvents.Question, 1, [lamp, pc], isCurrent: () => true);
+            Assert.Equal(["show #FFC000", "show #0040FF"], lamp.Calls); // volta para a cor de trabalhando
+            Assert.Equal(["show #FFC000", "release"], pc.Calls);       // "trabalhando" sem PC RGB: devolve o PC
+        }
+        finally { Storage.UpdateState(s => s.WorkingSince = null); }
+    }
+
+    [Fact]
+    public void Done_and_manual_end_working()
+    {
+        var cfg = new LampConfig();
+        cfg.Events[ClaudeEvents.Working].HoldWhileWorking = true;
+        Assert.NotNull(SignalRunner.Begin(cfg, ClaudeEvents.Working));
+        Assert.True(Storage.LoadState().IsWorking(cfg));
+        Assert.NotNull(SignalRunner.Begin(cfg, ClaudeEvents.Done));
+        Assert.False(Storage.LoadState().IsWorking(cfg));
+
+        SignalRunner.Begin(cfg, ClaudeEvents.Working);
+        SignalRunner.RememberManual(new ManualState());
+        Assert.False(Storage.LoadState().IsWorking(cfg));
+    }
+
+    [Fact]
+    public async Task Wait_for_user_holds_until_resumed()
+    {
+        var cfg = new LampConfig();
+        cfg.Events[ClaudeEvents.Question] = new SignalConfig { Color = "#FFC000", RestoreAfterSeconds = 1, WaitForUser = true };
+        Storage.UpdateState(s => { s.WaitingFor = null; s.WorkingSince = null; });
+
+        Assert.Null(SignalRunner.Begin(cfg, ClaudeEvents.Resumed)); // nada aguardando: PostToolUse é ignorado
+
+        var gen = SignalRunner.Begin(cfg, ClaudeEvents.Question)!.Value;
+        Assert.Equal(ClaudeEvents.Question, Storage.LoadState().WaitingFor);
+
+        var lamp = new KindTarget(lamp: true);
+        using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2)))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                SignalRunner.RunAsync(cfg, ClaudeEvents.Question, gen, [lamp], cts.Token, isCurrent: () => true));
+        Assert.Equal(["show #FFC000"], lamp.Calls); // segurou, apesar de "restaurar após 1 s"
+
+        var resumed = SignalRunner.Begin(cfg, ClaudeEvents.Resumed);
+        Assert.NotNull(resumed);
+        Assert.Null(Storage.LoadState().WaitingFor);
+        await SignalRunner.RunAsync(cfg, ClaudeEvents.Resumed, resumed.Value, [lamp], isCurrent: () => true);
+        Assert.Equal("release", lamp.Calls[^1]); // não está trabalhando: volta ao normal
+    }
+
+    [Fact]
+    public async Task Resume_goes_back_to_working_when_holding()
+    {
+        var cfg = new LampConfig();
+        cfg.Events[ClaudeEvents.Working] = new SignalConfig { Color = "#0040FF", HoldWhileWorking = true, PcRgb = true };
+        cfg.Events[ClaudeEvents.Permission] = new SignalConfig { Color = "#FF4000", WaitForUser = true };
+        SignalRunner.Begin(cfg, ClaudeEvents.Working);
+        SignalRunner.Begin(cfg, ClaudeEvents.Permission);
+        var gen = SignalRunner.Begin(cfg, ClaudeEvents.Resumed)!.Value;
+        var lamp = new KindTarget(lamp: true);
+        var pc = new KindTarget(lamp: false);
+        await SignalRunner.RunAsync(cfg, ClaudeEvents.Resumed, gen, [lamp, pc], isCurrent: () => true);
+        Assert.Equal(["show #0040FF"], lamp.Calls);
+        Assert.Equal(["show #0040FF"], pc.Calls); // "trabalhando" com PC RGB: o PC também volta para ela
+        SignalRunner.Begin(cfg, ClaudeEvents.Done);
     }
 
     [Fact]

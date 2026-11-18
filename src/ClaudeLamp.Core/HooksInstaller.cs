@@ -18,6 +18,7 @@ public sealed class HooksInstaller(string? settingsPath = null)
         ("Stop", null),
         ("Notification", null),
         ("PreToolUse", "AskUserQuestion|ExitPlanMode"),
+        ("PostToolUse", null), // detecta que você respondeu/aprovou/permitiu ("aguardar intervenção")
     ];
 
     private static readonly JsonSerializerOptions Pretty = new()
