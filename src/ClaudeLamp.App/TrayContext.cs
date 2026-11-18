@@ -23,8 +23,11 @@ internal sealed class TrayContext : ApplicationContext
     private Icon? _currentIcon;
     private string? _lastSeenSignal;
 
+    public static TrayContext? Current { get; private set; }
+
     public TrayContext(EventWaitHandle showSignal, bool openSettings)
     {
+        Current = this;
         _invoker.CreateControl();
 
         var menu = new ContextMenuStrip();

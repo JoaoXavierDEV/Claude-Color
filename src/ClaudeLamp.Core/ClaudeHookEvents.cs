@@ -94,7 +94,9 @@ public static class SignalRunner
         var color = RgbColor.Parse(sig.Color);
         bool Current() => isCurrent?.Invoke() ?? Storage.LoadState().SignalGeneration == generation;
 
-        Task All(Func<ILightTarget, Task> action) => Task.WhenAll(targets.Select(async t =>
+        Task All(Func<ILightTarget, Task> action) => Each(targets, action);
+
+        Task Each(IEnumerable<ILightTarget> subset, Func<ILightTarget, Task> action) => Task.WhenAll(subset.Select(async t =>
         {
             try { await action(t); }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -103,11 +105,16 @@ public static class SignalRunner
             }
         }));
 
+        // Dispositivos lentos não piscam: recebem a cor final já no início.
+        var blinkers = targets.Where(t => t.Blinks).ToList();
+        if (sig.Blink > 0 && blinkers.Count < targets.Count)
+            await Each(targets.Where(t => !t.Blinks), t => t.ShowAsync(color, sig.Brightness, ct));
+
         for (int i = 0; i < sig.Blink && Current(); i++)
         {
-            await All(t => t.ShowAsync(color, sig.Brightness, ct));
+            await Each(blinkers, t => t.ShowAsync(color, sig.Brightness, ct));
             await Task.Delay(sig.BlinkIntervalMs, ct);
-            await All(t => t.ShowAsync(color, 1, ct));
+            await Each(blinkers, t => t.ShowAsync(color, 1, ct));
             await Task.Delay(sig.BlinkIntervalMs, ct);
         }
         if (!Current()) { Storage.Log($"sinal '{evt}' #{generation} substituído por um mais novo"); return; }

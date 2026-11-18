@@ -23,6 +23,8 @@ internal sealed class SignalHost : IDisposable
     {
         Current = this;
         _ = Task.Run(ListenAsync);
+        // O Mystic Light demora para inicializar: faz isso já, antes do primeiro sinal.
+        _ = Task.Run(() => { if (Storage.LoadConfig().PcRgb.Msi && Elevation.IsElevated) MsiTarget.Warmup(); });
     }
 
     private async Task ListenAsync()
@@ -31,8 +33,7 @@ internal sealed class SignalHost : IDisposable
         {
             try
             {
-                await using var server = new NamedPipeServerStream(SignalPipe.Name, PipeDirection.InOut, 4,
-                    PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                await using var server = SignalPipe.CreateServer();
                 await server.WaitForConnectionAsync(_stop.Token);
                 var buf = new byte[128];
                 using var readCts = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);

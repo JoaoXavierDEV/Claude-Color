@@ -5,6 +5,12 @@ public interface ILightTarget : IDisposable
 {
     string Name { get; }
 
+    /// <summary>
+    /// False para dispositivos lentos (ex.: GPU via Mystic Light): não piscam, recebem a cor final
+    /// logo no início do sinal.
+    /// </summary>
+    bool Blinks => true;
+
     /// <param name="brightness">1–100.</param>
     Task ShowAsync(RgbColor color, int brightness, CancellationToken ct = default);
 

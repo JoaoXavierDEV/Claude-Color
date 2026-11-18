@@ -2,7 +2,7 @@
 
 Faça uma lâmpada inteligente Wi‑Fi (Tuya / Elgin Smart / Smart Life) mudar de cor conforme o que o **Claude Code** está fazendo. Se ele te fez uma pergunta, pediu permissão ou está esperando você aprovar o plano, a lâmpada pisca. Quando ele termina, ela fica verde. Assim dá para fazer outra coisa e saber, de longe, quando o Claude precisa de você.
 
-Opcionalmente, o **RGB do PC acompanha o sinal**: memória RAM e placa-mãe (Corsair iCUE), teclado e mouse (Logitech G HUB). Terminado o sinal, cada software volta ao próprio perfil.
+Opcionalmente, o **RGB do PC acompanha o sinal**: memória RAM e placa-mãe (Corsair iCUE), teclado e mouse (Logitech G HUB), placa de vídeo MSI (Mystic Light) e fans ARGB (OpenRGB). Terminado o sinal, cada software volta ao próprio perfil.
 
 Também serve para controlar a lâmpada pelo PC: liga/desliga, cor, brilho e branco quente/frio, tudo pela **rede local**, sem passar pela nuvem.
 
@@ -83,20 +83,27 @@ Exemplo do que é adicionado:
 
 ### 4. RGB do PC (opcional)
 
-Durante um sinal, o ClaudeLamp assume a iluminação dos softwares abaixo e depois a devolve: o iCUE retoma o perfil dele, e o G HUB restaura exatamente o que estava antes.
+Durante um sinal, o ClaudeLamp assume a iluminação dos softwares abaixo e depois a devolve: o iCUE retoma o perfil dele; o G HUB, o Mystic Light e o OpenRGB voltam exatamente ao modo e às cores que estavam antes.
 
 | Software | Dispositivos | SDK oficial (DLL x64) |
 |---|---|---|
 | Corsair iCUE | RAM, placa-mãe e o que mais o iCUE expuser | [iCUE SDK 4.x](https://github.com/CorsairOfficial/cue-sdk/releases): `iCUESDK.x64_2019.dll` |
 | Logitech G HUB | teclado, mouse e periféricos LIGHTSYNC | [LED SDK](https://www.logitechg.com/sdk/LED_SDK_9.00.zip): `LogitechLedEnginesWrapper.dll` |
+| MSI Center (Mystic Light) | placa de vídeo / placa-mãe MSI | `MysticLight_SDK_x64.dll`, já instalada com o plugin MSI do iCUE ou com o SDK do MSI Center. **Exige o app como administrador.** |
+| [OpenRGB](https://openrgb.org) 1.x | o que você marcar, por exemplo fans de um controlador Cooler Master ARGB | servidor SDK na porta 6742 (o ClaudeLamp inicia o OpenRGB sozinho) |
 
 1. Baixe os SDKs e coloque as DLLs **x64** em `<pasta do app>\x64\`, por exemplo `%USERPROFILE%\.claude-lamp\bin\x64\`. Elas não são distribuídas neste repositório.
 2. No **iCUE**, abra Configurações → Geral → **Habilitar SDK**. No **G HUB**, permita que jogos e aplicativos controlem a iluminação.
-3. Na aba **Dispositivos RGB**, use *Detectar* e *Testar*. Na aba **Eventos**, a coluna **PC RGB** escolhe quais eventos usam o RGB do PC. Por padrão, todos usam, menos "trabalhando" e "ocioso".
+3. **OpenRGB**: instale (`winget install OpenRGB.OpenRGB`). Na aba **Dispositivos RGB**, clique em *Carregar dispositivos do OpenRGB* e marque só o que nenhum outro software controla, para evitar disputa. Por padrão vêm marcados só os que não são RAM, placa-mãe, GPU, teclado ou mouse.
+4. **GPU MSI**: marque *MSI Mystic Light* e, na aba **Sistema**, use *Reiniciar como administrador* e *Iniciar com o Windows, como administrador* (Tarefa Agendada `ClaudeLamp`, sem UAC a cada login).
+5. Na aba **Dispositivos RGB**, use *Detectar* e *Testar*. Na aba **Eventos**, a coluna **PC RGB** escolhe quais eventos usam o RGB do PC. Por padrão, todos usam, menos "trabalhando" e "ocioso".
 
 O RGB do PC só funciona com o app aberto na bandeja, porque é ele que segura o controle durante o sinal. Com o app fechado, os hooks acendem só a lâmpada.
 
-> Ainda não suportados: placa de vídeo **MSI** (o Mystic Light SDK exige rodar como administrador) e fans controlados pelo **Cooler Master MasterCTRL** (não há SDK público).
+Detalhes:
+- **GPU MSI**: cada chamada ao Mystic Light leva centenas de milissegundos. Por isso a GPU não pisca: ela recebe a cor final logo no início do sinal. O estilo de cor fixa é detectado por dispositivo ("Steady" nas placas-mãe, "NoAnimation" nas placas de vídeo).
+- **OpenRGB**: no OpenRGB 1.x, clientes do SDK com protocolo menor que 6 têm a troca de modo ignorada ([issue 5924](https://gitlab.com/CalcProgrammer1/OpenRGB/-/work_items/5924)). Por isso o ClaudeLamp traz um cliente próprio do protocolo 6 (`OpenRgbProtocol.cs`), que consegue voltar o dispositivo ao modo original (por exemplo, *Spectrum*).
+- Se os fans também forem controlados pelo **MasterCTRL** (Cooler Master), deixe a iluminação deles só com o OpenRGB, ou os dois vão disputar o controle.
 
 ## Uso
 
@@ -104,9 +111,9 @@ O RGB do PC só funciona com o app aberto na bandeja, porque é ele que segura o
 - **Janela**:
   - **Controle**: cor, brilho e branco.
   - **Eventos do Claude**: uma linha por evento, com botão *Testar*.
-  - **Dispositivos RGB**: iCUE e G HUB, com *Detectar* e *Testar*.
+  - **Dispositivos RGB**: iCUE, G HUB, Mystic Light e OpenRGB (com lista de dispositivos), com *Detectar* e *Testar*.
   - **Conexão**: Device ID, IP, local key e protocolo.
-  - **Sistema**: hooks, *Iniciar com o Windows*, log e config.
+  - **Sistema**: hooks, *Reiniciar como administrador*, *Iniciar com o Windows* (Tarefa Agendada elevada), log e config.
 - Fechar a janela não encerra o app, que continua na bandeja. Para sair, use **Sair** no menu da bandeja.
 
 ## Como funciona
@@ -117,12 +124,15 @@ Claude Code ──hook (JSON no stdin)──► ClaudeLamp.exe hook ──► ma
                      app na bandeja aberto? ├─ sim ─► named pipe "ClaudeLamp.Signals" ─► app da bandeja
                                             │                                            ├─► lâmpada (TCP 6668)
                                             │                                            ├─► iCUE SDK
-                                            │                                            └─► Logitech LED SDK
+                                            │                                            ├─► Logitech LED SDK
+                                            │                                            ├─► MSI Mystic Light SDK (admin)
+                                            │                                            └─► OpenRGB (SDK protocolo 6)
                                             └─ não ─► ClaudeLamp.exe run-signal (processo separado) ─► só a lâmpada
 ```
 
 - O hook nunca falha e nunca bloqueia: ele sempre sai com código 0, e o efeito roda no app da bandeja ou num processo separado (via ShellExecute, sem herdar os pipes do Claude Code).
-- Os alvos (lâmpada, iCUE, G HUB) recebem o sinal em paralelo, e a falha de um não interrompe os outros.
+- Os alvos recebem o sinal em paralelo, e a falha de um não interrompe os outros. Cada SDK do PC tem uma fila própria em que o comando mais recente vence: um dispositivo lento descarta os passos intermediários do piscar e não atrasa os outros.
+- O pipe aceita só o usuário atual e tem rótulo de integridade média. Assim, o hook (sem admin) consegue falar com o app mesmo quando ele roda como administrador.
 - Cada sinal recebe um número de geração, e um sinal mais novo cancela o restaurar de um antigo.
 - Um aviso de permissão que chega logo depois de uma pergunta ou de um plano é ignorado, para não trocar a cor mais específica.
 - Configuração, estado e log ficam em `%APPDATA%\ClaudeLamp\` (`config.json`, `state.json` e `log.txt`). A variável `CLAUDE_LAMP_HOME` muda esse diretório.
@@ -138,7 +148,7 @@ src/ClaudeLamp.Core          protocolo Tuya, descoberta, cores, config, hooks
   LightTargets.cs              ILightTarget (lâmpada, RGB do PC)
   SignalPipe.cs                canal hook → app
   HookHandler.cs, HooksInstaller.cs, CloudKeys.cs
-src/ClaudeLamp.Rgb           RGB do PC: Corsair (RGB.NET) e Logitech (LED SDK via P/Invoke)
+src/ClaudeLamp.Rgb           RGB do PC: Corsair (RGB.NET), Logitech e MSI (P/Invoke), OpenRGB (cliente próprio, protocolo 6)
 src/ClaudeLamp.App           Windows Forms: bandeja + janela (abas) + SignalHost
 tests/ClaudeLamp.Core.Tests  xUnit
 ```
@@ -159,6 +169,8 @@ dotnet test
 | *Procurar na rede* não acha nada pelo UDP | Normal em alguns roteadores; a busca por TCP 6668 cobre esse caso. Para o UDP, libere o `ClaudeLamp.exe` no firewall (rede privada). |
 | Timeout / nenhum protocolo responde | Feche o app Smart Life no celular (a lâmpada aceita poucas conexões locais ao mesmo tempo). Confira também se a local key é do pareamento atual. |
 | RAM / placa-mãe não acendem | Confira "Habilitar SDK" no iCUE e se `iCUESDK.x64_2019.dll` aparece como encontrado na aba **Dispositivos RGB**. |
+| GPU MSI não muda | O app precisa estar como administrador (aba **Sistema**). O log mostra `Mystic Light não inicializou` quando não está. |
+| Fans não voltam ao modo original | Confira se o MasterCTRL (ou outro software) não está reaplicando as cores, e se o log mostra `openrgb: ... restaurado para '...'`. |
 | Teclado / mouse não acendem | Confira se o G HUB está aberto e permite o controle por aplicativos. Se a *Iluminação dinâmica* do Windows estiver ligada para esses dispositivos, desligue-a. |
 | A lâmpada não reage ao Claude Code | Veja se os hooks aparecem como "Instalados" na aba **Sistema**, reinicie a sessão do Claude Code e consulte `log.txt`. |
 
@@ -166,6 +178,7 @@ dotnet test
 
 - [TinyTuya](https://github.com/jasonacox/tinytuya): referência do protocolo local Tuya.
 - [TuyaNet](https://github.com/ClusterM/tuyanet): cliente da API cloud (busca da local key) e do protocolo 3.1.
-- [RGB.NET](https://github.com/DarthAffe/RGB.NET): integração com o iCUE SDK.
+- [RGB.NET](https://github.com/DarthAffe/RGB.NET): integração com o iCUE SDK e referência das assinaturas do Mystic Light SDK.
+- [OpenRGB](https://openrgb.org): servidor e especificação do SDK.
 
-Projeto independente, sem vínculo com a Elgin, a Tuya, a Corsair, a Logitech ou a Anthropic.
+Projeto independente, sem vínculo com a Elgin, a Tuya, a Corsair, a Logitech, a MSI, a Cooler Master ou a Anthropic.

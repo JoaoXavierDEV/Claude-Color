@@ -34,11 +34,41 @@ internal static class Program
                 case "uninstall-hooks":
                     new HooksInstaller().Uninstall();
                     return 0;
+
+                // Executados numa instância elevada (UAC) a pedido da aba Sistema.
+                case "install-autostart":
+                    return Elevation.IsElevated && Elevation.SetAutostartTask(true) ? 0 : 1;
+
+                case "uninstall-autostart":
+                    return Elevation.IsElevated && Elevation.SetAutostartTask(false) ? 0 : 1;
             }
         }
 
-        using var mutex = new Mutex(true, @"Local\ClaudeLamp.App", out bool first);
-        using var showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\ClaudeLamp.App.Show");
+        // "--after <pid>": reinício como admin; espera a instância anterior fechar.
+        var afterIdx = Array.IndexOf(args, "--after");
+        if (afterIdx >= 0 && afterIdx + 1 < args.Length && int.TryParse(args[afterIdx + 1], out var oldPid))
+        {
+            try { System.Diagnostics.Process.GetProcessById(oldPid).WaitForExit(15000); }
+            catch (ArgumentException) { /* já fechou */ }
+        }
+
+        Mutex mutex;
+        EventWaitHandle showSignal;
+        bool first;
+        try
+        {
+            mutex = new Mutex(true, @"Local\ClaudeLamp.App", out first);
+            showSignal = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\ClaudeLamp.App.Show");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Já existe uma instância rodando como administrador; esta (sem admin) não consegue abrir os objetos dela.
+            MessageBox.Show("O Claude Lamp já está aberto como administrador.\nUse o ícone na bandeja.", "Claude Lamp",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return 0;
+        }
+        using var _m = mutex;
+        using var _s = showSignal;
         if (!first)
         {
             showSignal.Set(); // já está rodando: pede para a instância aberta mostrar a janela

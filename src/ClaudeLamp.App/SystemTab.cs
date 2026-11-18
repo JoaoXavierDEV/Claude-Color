@@ -6,13 +6,12 @@ namespace ClaudeLamp.App;
 /// <summary>Hooks do Claude Code, inicialização com o Windows e arquivos.</summary>
 internal sealed class SystemTab : UserControl
 {
-    private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValue = "ClaudeLamp";
-
     private readonly HooksInstaller _hooks = new();
     private readonly Label _hooksStatus = Ui.Label("", bold: true);
     private readonly Label _status = Ui.Label("");
-    private readonly CheckBox _autostart = new() { Text = "Iniciar o Claude Lamp com o Windows (na bandeja)", AutoSize = true };
+    private readonly CheckBox _autostart = new() { Text = "Iniciar o Claude Lamp com o Windows, como administrador (Tarefa Agendada)", AutoSize = true };
+    private readonly Label _elevated = Ui.Label("", bold: true);
+    private readonly Button _restartAdmin;
     private bool _loading;
 
     public SystemTab()
@@ -30,7 +29,10 @@ internal sealed class SystemTab : UserControl
 
         root.Controls.Add(new Label { Height = 10 });
         root.Controls.Add(Ui.Label("Windows", bold: true));
-        _autostart.CheckedChanged += (_, _) => { if (!_loading) SetAutostart(_autostart.Checked); };
+        _restartAdmin = Ui.Button("Reiniciar como administrador", (_, _) => RestartAsAdmin());
+        root.Controls.Add(Ui.Row(_elevated, _restartAdmin));
+        root.Controls.Add(Ui.Label("A placa de vídeo MSI (Mystic Light) só responde com o app rodando como administrador."));
+        _autostart.CheckedChanged += async (_, _) => { if (!_loading) await SetAutostartAsync(_autostart.Checked); };
         root.Controls.Add(_autostart);
 
         root.Controls.Add(new Label { Height = 10 });
@@ -62,8 +64,11 @@ internal sealed class SystemTab : UserControl
                 HooksStatus.Outdated => ("● Desatualizados (apontam para outro executável) — clique em Instalar / atualizar", Color.DarkOrange),
                 _ => ("● Não instalados", Ui.Error),
             };
-            using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-            _autostart.Checked = key?.GetValue(RunValue) is string;
+            var admin = Elevation.IsElevated;
+            _elevated.Text = admin ? "● Executando como administrador" : "● Executando sem privilégios de administrador";
+            _elevated.ForeColor = admin ? Ui.Ok : Color.DarkOrange;
+            _restartAdmin.Visible = !admin;
+            _autostart.Checked = Elevation.AutostartTaskExists();
         }
         catch (Exception ex) { _status.ForeColor = Ui.Error; _status.Text = ex.Message; }
         finally { _loading = false; }
@@ -86,16 +91,38 @@ internal sealed class SystemTab : UserControl
         Refresh2();
     }
 
-    private void SetAutostart(bool on)
+    private void RestartAsAdmin()
     {
+        if (Elevation.RestartElevated()) TrayContext.Current?.ExitThread();
+        else { _status.ForeColor = Ui.Error; _status.Text = "Reinício como administrador cancelado."; }
+    }
+
+    private async Task SetAutostartAsync(bool on)
+    {
+        _autostart.Enabled = false;
         try
         {
-            using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-            if (on) key.SetValue(RunValue, $"\"{Program.ExePath}\" --tray");
-            else key.DeleteValue(RunValue, throwOnMissingValue: false);
-            _status.ForeColor = Ui.Ok;
-            _status.Text = on ? "Vai iniciar com o Windows." : "Não vai mais iniciar com o Windows.";
+            if (!Elevation.SetAutostartTask(on))
+            {
+                _status.ForeColor = Ui.Error;
+                _status.Text = "Não foi possível alterar a Tarefa Agendada (UAC cancelado?).";
+            }
+            else
+            {
+                if (on) Elevation.RemoveRunEntry();
+                // Sem admin a criação roda numa instância elevada separada: espera ela terminar.
+                for (int i = 0; i < 20 && Elevation.AutostartTaskExists() != on; i++) await Task.Delay(500);
+                var done = Elevation.AutostartTaskExists() == on;
+                _status.ForeColor = done ? Ui.Ok : Ui.Error;
+                _status.Text = done
+                    ? (on ? "Vai iniciar com o Windows como administrador." : "Não vai mais iniciar com o Windows.")
+                    : "A Tarefa Agendada não mudou; veja o log.";
+            }
         }
-        catch (Exception ex) { _status.ForeColor = Ui.Error; _status.Text = ex.Message; }
+        finally
+        {
+            _autostart.Enabled = true;
+            Refresh2();
+        }
     }
 }

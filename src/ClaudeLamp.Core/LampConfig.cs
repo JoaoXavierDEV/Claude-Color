@@ -30,6 +30,20 @@ public sealed class PcRgbConfig
     public bool Corsair { get; set; } = true;
     /// <summary>Logitech G HUB (teclado, mouse).</summary>
     public bool Logitech { get; set; } = true;
+    /// <summary>MSI Mystic Light SDK (exige o app como administrador). A GPU também pode ir pelo OpenRGB.</summary>
+    public bool Msi { get; set; }
+    public OpenRgbConfig OpenRgb { get; set; } = new();
+}
+
+public sealed class OpenRgbConfig
+{
+    public bool Enabled { get; set; } = true;
+    public string Host { get; set; } = "127.0.0.1";
+    public int Port { get; set; } = 6742;
+    /// <summary>Inicia o OpenRGB com o servidor SDK quando ele não está rodando.</summary>
+    public bool AutoStart { get; set; } = true;
+    /// <summary>"Fabricante Nome" dos dispositivos controlados. Null = padrão (o que iCUE/G HUB não cobrem).</summary>
+    public List<string>? Devices { get; set; }
 }
 
 public sealed class LampConfig

@@ -129,6 +129,30 @@ public class SignalPipeTests
     }
 
     [Fact]
+    public void Security_descriptor_limits_to_user_and_medium_integrity()
+    {
+        var sddl = SignalPipe.SecurityDescriptor("S-1-5-21-1-2-3-1001");
+        Assert.Equal("D:(A;;GA;;;S-1-5-21-1-2-3-1001)(A;;GA;;;SY)S:(ML;;NW;;;ME)", sddl);
+    }
+
+    [Fact]
+    public async Task Server_with_acl_receives_signal_end_to_end()
+    {
+        var name = "ClaudeLamp.Test." + Guid.NewGuid().ToString("N");
+        await using var server = SignalPipe.CreateServer(name);
+        var serve = Task.Run(async () =>
+        {
+            await server.WaitForConnectionAsync();
+            var buf = new byte[64];
+            int n = await server.ReadAsync(buf);
+            await server.WriteAsync("ok\n"u8.ToArray());
+            return System.Text.Encoding.UTF8.GetString(buf, 0, n);
+        });
+        Assert.True(SignalPipe.TrySend("plan", 7, timeoutMs: 1000, name: name));
+        Assert.Equal("plan 7\n", await serve);
+    }
+
+    [Fact]
     public void Send_without_app_returns_false_quickly()
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -174,6 +198,27 @@ public class MultiTargetSignalTests
         Assert.Equal("release", broken.Calls[^1]);
     }
 
+    private sealed class SlowTarget : ILightTarget
+    {
+        public List<string> Calls { get; } = [];
+        public string Name => "slow";
+        public bool Blinks => false;
+        public Task ShowAsync(RgbColor color, int brightness, CancellationToken ct = default) { Calls.Add($"show {brightness}"); return Task.CompletedTask; }
+        public Task ReleaseAsync(CancellationToken ct = default) { Calls.Add("release"); return Task.CompletedTask; }
+        public void Dispose() { }
+    }
+
+    [Fact]
+    public async Task Slow_targets_skip_blink_and_get_final_color()
+    {
+        var fast = new FakeTarget("fast");
+        var slow = new SlowTarget();
+        var cfg = Cfg(new SignalConfig { Color = "#00FF00", Brightness = 90, Blink = 3, BlinkIntervalMs = 1, RestoreAfterSeconds = 1 });
+        await SignalRunner.RunAsync(cfg, ClaudeEvents.Done, 1, [fast, slow], isCurrent: () => true);
+        Assert.Equal(7, fast.Calls.Count(c => c.StartsWith("show"))); // 3 piscadas × 2 + final
+        Assert.Equal(["show 90", "show 90", "release"], slow.Calls);   // início + final, sem o brilho 1
+    }
+
     [Fact]
     public async Task Superseded_signal_does_not_show_or_release()
     {
@@ -192,6 +237,18 @@ public class MultiTargetSignalTests
         Assert.False(s.UsesPcRgb(ClaudeEvents.Working));
         Assert.False(s.UsesPcRgb(ClaudeEvents.Idle));
         Assert.True(new SignalConfig { PcRgb = true }.UsesPcRgb(ClaudeEvents.Working));
+    }
+
+    [Fact]
+    public void Pc_rgb_config_defaults()
+    {
+        var cfg = new LampConfig().PcRgb;
+        Assert.True(cfg.Corsair);
+        Assert.True(cfg.Logitech);
+        Assert.False(cfg.Msi); // exige admin: desligado por padrão
+        Assert.True(cfg.OpenRgb.Enabled);
+        Assert.Null(cfg.OpenRgb.Devices); // null = seleção padrão
+        Assert.Equal(6742, cfg.OpenRgb.Port);
     }
 
     [Fact]

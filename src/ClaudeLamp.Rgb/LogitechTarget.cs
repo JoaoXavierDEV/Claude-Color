@@ -13,13 +13,7 @@ public sealed class LogitechTarget : ILightTarget
     private const int DeviceTypeAll = 7; // MONOCHROME | RGB | PERKEY_RGB
     private bool _active;
 
-    static LogitechTarget() =>
-        NativeLibrary.SetDllImportResolver(typeof(LogitechTarget).Assembly, Resolve);
-
-    private static IntPtr Resolve(string name, Assembly asm, DllImportSearchPath? path) =>
-        name == "LogitechLedEnginesWrapper" && NativeSdk.Find(NativeSdk.LogitechDll) is { } dll
-            ? NativeLibrary.Load(dll)
-            : IntPtr.Zero;
+    static LogitechTarget() => NativeSdk.EnsureResolver();
 
     public string Name => "Logitech G HUB";
 

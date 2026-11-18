@@ -26,18 +26,27 @@ public sealed class CorsairTarget : ILightTarget
             CorsairDeviceProvider.PossibleX64NativePaths.Insert(0, dll);
         CorsairDeviceProvider.ExclusiveAccess = true;
 
-        var surface = new RGBSurface();
-        try
+        // Logo depois de um Release o iCUE ainda pode estar fechando a sessão anterior ("already connected"):
+        // espera um pouco e tenta de novo.
+        RGBSurface? surface = null;
+        for (int attempt = 1; ; attempt++)
         {
-            surface.Load(CorsairDeviceProvider.Instance, RGBDeviceType.All, throwExceptions: true);
-            if (surface.Devices.Count == 0)
-                throw new InvalidOperationException("O iCUE não expôs nenhum dispositivo. \"Habilitar SDK\" está ligado no iCUE?");
-        }
-        catch
-        {
-            surface.Dispose();
-            CorsairDeviceProvider.Instance.Dispose();
-            throw;
+            surface = new RGBSurface();
+            try
+            {
+                surface.Load(CorsairDeviceProvider.Instance, RGBDeviceType.All, throwExceptions: true);
+                if (surface.Devices.Count == 0)
+                    throw new InvalidOperationException("O iCUE não expôs nenhum dispositivo. \"Habilitar SDK\" está ligado no iCUE?");
+                break;
+            }
+            catch (Exception ex)
+            {
+                surface.Dispose();
+                CorsairDeviceProvider.Instance.Dispose();
+                bool busy = ex.ToString().Contains("already connected", StringComparison.OrdinalIgnoreCase);
+                if (!busy || attempt >= 5) throw;
+                Thread.Sleep(300 * attempt);
+            }
         }
         _surface = surface;
         _group = new ListLedGroup(surface, surface.Leds);
