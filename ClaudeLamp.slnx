@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="README.md" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/ClaudeLamp.App/ClaudeLamp.App.csproj" />
     <Project Path="src/ClaudeLamp.Core/ClaudeLamp.Core.csproj" />
