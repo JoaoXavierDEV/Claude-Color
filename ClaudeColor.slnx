@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/ClaudeColor.App/ClaudeColor.App.csproj" />
+    <Project Path="src/ClaudeColor.Core/ClaudeColor.Core.csproj" />
+    <Project Path="src/ClaudeColor.Rgb/ClaudeColor.Rgb.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ClaudeColor.Core.Tests/ClaudeColor.Core.Tests.csproj" />
+  </Folder>
+</Solution>
