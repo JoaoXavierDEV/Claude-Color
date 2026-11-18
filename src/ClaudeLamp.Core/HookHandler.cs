@@ -16,6 +16,9 @@ public static class HookHandler
             WorkingDirectory = Path.GetDirectoryName(exe) ?? AppContext.BaseDirectory,
         });
 
+    /// <summary>Entrega o sinal ao app aberto. Substituível nos testes.</summary>
+    public static Func<string, long, bool> SendToHost { get; set; } = (evt, gen) => SignalPipe.TrySend(evt, gen);
+
     /// <returns>O evento disparado, ou null se nada foi feito.</returns>
     public static string? Handle(string input, string exePath)
     {
@@ -29,6 +32,10 @@ public static class HookHandler
             if (!cfg.IsConfigured) return null;
             if (SignalRunner.Begin(cfg, evt) is not { } gen) return null;
 
+            // App da bandeja aberto: ele executa o sinal na lâmpada e no RGB do PC.
+            if (SendToHost(evt, gen)) { Storage.Log($"hook: '{evt}' #{gen} entregue ao app"); return evt; }
+
+            // App fechado: só a lâmpada, num processo separado.
             StartProcess(exePath, $"run-signal {evt} {gen}");
             return evt;
         }

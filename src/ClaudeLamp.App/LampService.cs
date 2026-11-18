@@ -29,20 +29,20 @@ internal static class LampService
     /// <summary>Aplica um estado manual e o guarda para restaurar depois dos sinais.</summary>
     public static async Task ApplyManualAsync(ManualState state)
     {
+        if (SignalHost.Current is { } host) await host.OnManualChangeAsync();
         await RunAsync(lamp => lamp.ApplyAsync(state));
         SignalRunner.RememberManual(state);
         ManualStateChanged?.Invoke(state);
     }
 
-    public static async Task TestSignalAsync(LampConfig cfg, string evt)
+    /// <summary>Testa um evento com os valores ainda não salvos da tela (lâmpada + RGB do PC).</summary>
+    public static void TestSignal(LampConfig cfg, string evt)
     {
         cfg.SignalsEnabled = true;
         cfg.Events[evt].Enabled = true;
-        // No teste, restaura em até 5 s para não deixar a janela esperando.
-        if (cfg.Events[evt].RestoreAfterSeconds is > 5) cfg.Events[evt].RestoreAfterSeconds = 5;
+        // No teste, restaura em até 5 s para não deixar tudo na cor do evento.
+        if (cfg.Events[evt].RestoreAfterSeconds is null or 0 or > 5) cfg.Events[evt].RestoreAfterSeconds = 5;
         if (SignalRunner.Begin(cfg, evt) is not { } gen) return;
-        await Gate.WaitAsync();
-        try { await Task.Run(() => SignalRunner.RunAsync(cfg, evt, gen)); }
-        finally { Gate.Release(); }
+        SignalHost.Current?.Dispatch(evt, gen, cfg);
     }
 }

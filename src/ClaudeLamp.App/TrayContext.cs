@@ -18,6 +18,7 @@ internal sealed class TrayContext : ApplicationContext
     private readonly System.Windows.Forms.Timer _refresh;
     private readonly Control _invoker = new();
     private readonly RegisteredWaitHandle _showWait;
+    private readonly SignalHost _signalHost = new();
     private SettingsForm? _settings;
     private Icon? _currentIcon;
     private string? _lastSeenSignal;
@@ -156,6 +157,7 @@ internal sealed class TrayContext : ApplicationContext
     protected override void ExitThreadCore()
     {
         _showWait.Unregister(null);
+        _signalHost.Dispose(); // devolve o RGB do PC aos softwares dos fabricantes
         _refresh.Stop();
         _icon.Visible = false;
         _icon.Dispose();

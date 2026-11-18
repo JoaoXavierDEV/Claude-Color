@@ -21,7 +21,7 @@ internal sealed class EventsTab : UserControl
 
     private sealed class RowControls
     {
-        public required CheckBox Enabled;
+        public required CheckBox Enabled, PcRgb;
         public required Button Color;
         public required NumericUpDown Brightness, Blink, Interval, Restore;
         public required Button Test;
@@ -36,8 +36,8 @@ internal sealed class EventsTab : UserControl
         var root = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
         root.Controls.Add(_signalsEnabled);
 
-        var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 8, Margin = new Padding(0) };
-        string[] headers = ["Evento", "Ativo", "Cor", "Brilho %", "Piscadas", "Intervalo ms", "Restaurar após s", ""];
+        var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 9, Margin = new Padding(0) };
+        string[] headers = ["Evento", "Ativo", "PC RGB", "Cor", "Brilho %", "Piscadas", "Intervalo ms", "Restaurar após s", ""];
         foreach (var h in headers) grid.Controls.Add(Ui.Label(h, bold: true));
 
         foreach (var evt in Order)
@@ -45,6 +45,7 @@ internal sealed class EventsTab : UserControl
             var row = new RowControls
             {
                 Enabled = new CheckBox { AutoSize = true, Margin = new Padding(12, 8, 3, 3) },
+                PcRgb = new CheckBox { AutoSize = true, Margin = new Padding(18, 8, 3, 3) },
                 Color = new Button { Width = 70, Height = 26, FlatStyle = FlatStyle.Flat },
                 Brightness = Num(1, 100),
                 Blink = Num(0, 10),
@@ -53,14 +54,14 @@ internal sealed class EventsTab : UserControl
                 Test = new Button { Text = "Testar", Width = 70, Height = 26 },
             };
             row.Color.Click += (_, _) => PickColor(row.Color);
-            row.Test.Click += async (_, _) => await TestAsync(evt);
+            row.Test.Click += (_, _) => Test(evt);
             _rows[evt] = row;
 
             grid.Controls.Add(Ui.Label(DisplayName(evt)));
-            grid.Controls.AddRange([row.Enabled, row.Color, row.Brightness, row.Blink, row.Interval, row.Restore, row.Test]);
+            grid.Controls.AddRange([row.Enabled, row.PcRgb, row.Color, row.Brightness, row.Blink, row.Interval, row.Restore, row.Test]);
         }
         root.Controls.Add(grid);
-        root.Controls.Add(Ui.Label("\"Restaurar após\" = segundos até voltar à cor escolhida em Controle (0 = fica na cor do evento)."));
+        root.Controls.Add(Ui.Label("\"PC RGB\" = também acende RAM, placa-mãe, teclado e mouse (aba Dispositivos RGB).\n\"Restaurar após\" = segundos até voltar à cor escolhida em Controle (0 = fica na cor do evento)."));
         root.Controls.Add(Ui.Row(
             Ui.Button("Salvar", (_, _) => Save(), 90),
             Ui.Button("Restaurar padrões", (_, _) => { Show(LampConfig.DefaultEvents(), _signalsEnabled.Checked); _status.Text = "Padrões carregados (clique Salvar)."; })));
@@ -85,6 +86,7 @@ internal sealed class EventsTab : UserControl
         {
             var s = events.TryGetValue(evt, out var v) ? v : new SignalConfig();
             row.Enabled.Checked = s.Enabled;
+            row.PcRgb.Checked = s.UsesPcRgb(evt);
             row.Color.BackColor = Ui.ParseOr(s.Color, Color.White);
             row.Color.Tag = Ui.ToRgb(row.Color.BackColor).ToHex();
             row.Brightness.Value = Math.Clamp(s.Brightness, 1, 100);
@@ -112,6 +114,7 @@ internal sealed class EventsTab : UserControl
             cfg.Events[evt] = new SignalConfig
             {
                 Enabled = row.Enabled.Checked,
+                PcRgb = row.PcRgb.Checked,
                 Color = (string)row.Color.Tag!,
                 Brightness = (int)row.Brightness.Value,
                 Blink = (int)row.Blink.Value,
@@ -129,13 +132,11 @@ internal sealed class EventsTab : UserControl
         _status.Text = $"Salvo às {DateTime.Now:HH:mm:ss}.";
     }
 
-    private async Task TestAsync(string evt)
+    private void Test(string evt)
     {
-        var buttons = _rows.Values.Select(r => (Control)r.Test).ToArray();
-        await Ui.Busy(_status, $"Testando \"{DisplayName(evt)}\"...", buttons, async () =>
-        {
-            await LampService.TestSignalAsync(Collect(), evt);
-            return $"\"{DisplayName(evt)}\" testado.";
-        });
+        if (SignalHost.Current is null) { _status.ForeColor = Ui.Error; _status.Text = "O app ainda está iniciando."; return; }
+        LampService.TestSignal(Collect(), evt);
+        _status.ForeColor = Ui.Ok;
+        _status.Text = $"Testando \"{DisplayName(evt)}\" (volta ao normal em até 5 s).";
     }
 }

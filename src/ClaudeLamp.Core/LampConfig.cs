@@ -16,6 +16,20 @@ public sealed class SignalConfig
     public int BlinkIntervalMs { get; set; } = 350;
     /// <summary>Segundos até voltar ao estado manual anterior (null/0 = fica na cor do sinal).</summary>
     public int? RestoreAfterSeconds { get; set; }
+    /// <summary>Também acende o RGB do PC (RAM, placa-mãe, teclado, mouse). Null = padrão do evento.</summary>
+    public bool? PcRgb { get; set; }
+
+    public static bool DefaultPcRgb(string evt) => evt is not (ClaudeEvents.Working or ClaudeEvents.Idle);
+    public bool UsesPcRgb(string evt) => PcRgb ?? DefaultPcRgb(evt);
+}
+
+/// <summary>Quais softwares de RGB do PC o ClaudeLamp pode assumir durante um sinal.</summary>
+public sealed class PcRgbConfig
+{
+    /// <summary>Corsair iCUE (RAM, placa-mãe e o que mais o iCUE expuser).</summary>
+    public bool Corsair { get; set; } = true;
+    /// <summary>Logitech G HUB (teclado, mouse).</summary>
+    public bool Logitech { get; set; } = true;
 }
 
 public sealed class LampConfig
@@ -29,6 +43,8 @@ public sealed class LampConfig
     public string DpsProfile { get; set; } = "auto";
     /// <summary>Liga/desliga os sinais do Claude Code (o app de bandeja alterna isso).</summary>
     public bool SignalsEnabled { get; set; } = true;
+    /// <summary>RGB do PC acompanhando os sinais.</summary>
+    public PcRgbConfig PcRgb { get; set; } = new();
 
     /// <summary>
     /// Chaves: working, question, plan, permission, idle, done.

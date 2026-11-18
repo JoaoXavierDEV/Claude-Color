@@ -3,7 +3,7 @@ namespace ClaudeLamp.App;
 /// <summary>Janela de configurações. Fechar só esconde; o app continua na bandeja.</summary>
 internal sealed class SettingsForm : Form
 {
-    public const int ControlTabIndex = 0, EventsTabIndex = 1, ConnectionTabIndex = 2, SystemTabIndex = 3;
+    public const int ControlTabIndex = 0, EventsTabIndex = 1, RgbTabIndex = 2, ConnectionTabIndex = 3, SystemTabIndex = 4;
 
     private readonly TabControl _tabs = new() { Dock = DockStyle.Fill, Padding = new Point(12, 4) };
 
@@ -18,6 +18,7 @@ internal sealed class SettingsForm : Form
 
         AddTab("Controle", new ControlTab());
         AddTab("Eventos do Claude", new EventsTab());
+        AddTab("Dispositivos RGB", new RgbTab());
         AddTab("Conexão", new ConnectionTab());
         AddTab("Sistema", new SystemTab());
         Controls.Add(_tabs);

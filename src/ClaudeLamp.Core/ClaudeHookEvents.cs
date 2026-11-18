@@ -76,35 +76,50 @@ public static class SignalRunner
         return state.SignalGeneration;
     }
 
+    /// <summary>Só a lâmpada (usado quando o app da bandeja não está aberto).</summary>
     public static async Task RunAsync(LampConfig cfg, string evt, long generation, CancellationToken ct = default)
+    {
+        using var lamp = new TuyaLampTarget(cfg);
+        await RunAsync(cfg, evt, generation, [lamp], ct);
+    }
+
+    /// <summary>
+    /// Executa o sinal em todos os alvos em paralelo. A falha de um alvo não interrompe os outros.
+    /// <paramref name="isCurrent"/> diz se este sinal ainda é o mais recente (padrão: geração no state.json).
+    /// </summary>
+    public static async Task RunAsync(LampConfig cfg, string evt, long generation, IReadOnlyList<ILightTarget> targets,
+        CancellationToken ct = default, Func<bool>? isCurrent = null)
     {
         var sig = cfg.Events[evt];
         var color = RgbColor.Parse(sig.Color);
-        using var lamp = new LampClient(cfg);
+        bool Current() => isCurrent?.Invoke() ?? Storage.LoadState().SignalGeneration == generation;
 
-        bool Current() => Storage.LoadState().SignalGeneration == generation;
-
-        if (sig.Blink > 0)
+        Task All(Func<ILightTarget, Task> action) => Task.WhenAll(targets.Select(async t =>
         {
-            for (int i = 0; i < sig.Blink && Current(); i++)
+            try { await action(t); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                await lamp.SetColorAsync(color, sig.Brightness, ct);
-                await Task.Delay(sig.BlinkIntervalMs, ct);
-                await lamp.SetColorAsync(color, 1, ct);
-                await Task.Delay(sig.BlinkIntervalMs, ct);
+                Storage.Log($"sinal '{evt}' #{generation}: {t.Name} falhou: {ex.Message}");
             }
+        }));
+
+        for (int i = 0; i < sig.Blink && Current(); i++)
+        {
+            await All(t => t.ShowAsync(color, sig.Brightness, ct));
+            await Task.Delay(sig.BlinkIntervalMs, ct);
+            await All(t => t.ShowAsync(color, 1, ct));
+            await Task.Delay(sig.BlinkIntervalMs, ct);
         }
         if (!Current()) { Storage.Log($"sinal '{evt}' #{generation} substituído por um mais novo"); return; }
-        await lamp.SetColorAsync(color, sig.Brightness, ct);
-        Storage.Log($"sinal '{evt}' #{generation} aplicado ({sig.Color})");
+        await All(t => t.ShowAsync(color, sig.Brightness, ct));
+        Storage.Log($"sinal '{evt}' #{generation} aplicado ({sig.Color}) em {string.Join(", ", targets.Select(t => t.Name))}");
 
         if (sig.RestoreAfterSeconds is > 0 and var secs)
         {
             await Task.Delay(TimeSpan.FromSeconds(secs), ct);
             if (!Current()) return;
-            var manual = Storage.LoadState().Manual;
-            await lamp.ApplyAsync(manual, ct);
-            Storage.Log($"estado manual restaurado após '{evt}' #{generation}");
+            await All(t => t.ReleaseAsync(ct));
+            Storage.Log($"estado normal restaurado após '{evt}' #{generation}");
         }
     }
 
