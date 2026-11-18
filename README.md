@@ -188,4 +188,8 @@ dotnet test
 - [RGB.NET](https://github.com/DarthAffe/RGB.NET): integração com o iCUE SDK e referência das assinaturas do Mystic Light SDK.
 - [OpenRGB](https://openrgb.org): servidor e especificação do SDK.
 
+## Licença
+
+[MIT](LICENSE). Os SDKs de terceiros (Corsair iCUE SDK, Logitech LED SDK, MSI Mystic Light SDK) não fazem parte deste repositório e seguem as licenças dos respectivos fabricantes.
+
 Projeto independente, sem vínculo com a Elgin, a Tuya, a Corsair, a Logitech, a MSI, a Cooler Master ou a Anthropic.
