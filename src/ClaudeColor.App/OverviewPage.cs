@@ -67,7 +67,7 @@ internal sealed class OverviewPage : Page
 
             var active = ActiveOutputs(cfg);
             Ui.SetStatus(_devicesStatus, active.Count > 0 ? true : false,
-                active.Count > 0 ? "Acende: " + string.Join(", ", active) : "Nenhum dispositivo ativo");
+                (active.Count > 0 ? "Acende: " + string.Join(", ", active) : "Nenhum dispositivo ativo") + $"  ·  perfil {cfg.ActiveProfile}");
             _goDevices.Text = active.Count > 0 ? "Dispositivos" : "Escolher dispositivos";
 
             Ui.SetStatus(_signalsStatus, cfg.SignalsEnabled ? true : null, cfg.SignalsEnabled ? "Sinais ligados" : "Sinais pausados");

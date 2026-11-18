@@ -93,6 +93,11 @@ public sealed class AppConfig
     public PcRgbConfig PcRgb { get; set; } = new();
     public LampConfig Lamp { get; set; } = new();
 
+    /// <summary>Combinações de controladores. O "Padrão" (só OpenRGB) sempre existe. Veja <see cref="Profiles"/>.</summary>
+    public List<DeviceProfile> Profiles { get; set; } = [];
+    /// <summary>Nome do perfil em uso; as escolhas dele estão copiadas em <see cref="PcRgb"/> e <see cref="LampConfig.Enabled"/>.</summary>
+    public string ActiveProfile { get; set; } = ClaudeColor.Core.Profiles.DefaultName;
+
     /// <summary>
     /// Chaves: working, question, plan, permission, idle, done.
     /// Veja <see cref="ClaudeEvents"/>.
@@ -242,7 +247,9 @@ public static class Storage
     public static AppConfig LoadConfig()
     {
         var cfg = Read<AppConfig>(ConfigPath) ?? new AppConfig();
-        if (cfg.MigrateLegacy()) SaveConfig(cfg);
+        bool migrated = cfg.MigrateLegacy();
+        // Sem config.json ainda (instalação nova), os perfis ficam só em memória até o primeiro Salvar.
+        if ((cfg.EnsureProfiles() | migrated) && File.Exists(ConfigPath)) SaveConfig(cfg);
         // Garante que eventos novos apareçam mesmo em configs antigas.
         var events = new Dictionary<string, SignalConfig>(cfg.Events, StringComparer.OrdinalIgnoreCase);
         foreach (var (k, v) in AppConfig.DefaultEvents())

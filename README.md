@@ -47,8 +47,19 @@ dotnet publish src/ClaudeColor.App -c Release -o "$env:USERPROFILE\.claude-color
 Na primeira execução, a janela abre na **Visão geral**, que mostra o que falta:
 
 1. **Instalar hooks**: o app adiciona as entradas em `~/.claude/settings.json` (com backup antes) e preserva os hooks de outras ferramentas. Sessões já abertas do Claude Code podem precisar ser reiniciadas.
-2. **Escolher dispositivos**: na página **Dispositivos**, ative o OpenRGB, a lâmpada ou as integrações nativas.
+2. **Escolher dispositivos**: o perfil **Padrão** já usa o OpenRGB com todos os dispositivos. Para a lâmpada ou as integrações nativas, crie um perfil (veja [Perfis](#perfis)).
 3. **Testar**: um botão por evento, que volta ao normal em até 5 s.
+
+Se algo não acender, a página **Solução de problemas** confere o que o perfil ativo precisa (Claude Code, hooks, OpenRGB e servidor SDK, DLLs dos SDKs, software do fabricante aberto, administrador, lâmpada na rede) e mostra o link para baixar o que falta.
+
+## Perfis
+
+Um perfil é uma combinação de controladores: OpenRGB (e quais dispositivos dele), iCUE, G HUB, Mystic Light e lâmpada.
+
+- **Padrão**: só o OpenRGB, com todos os dispositivos. Não pode ser alterado nem excluído, e é o ponto de partida em qualquer PC.
+- Quando o OpenRGB sozinho não servir (um software do fabricante disputando um dispositivo, por exemplo), crie um perfil na página **Perfis** ou em **Dispositivos → Criar perfil a partir do Padrão** e combine o que funcionar no seu setup. As mudanças em **Dispositivos** ficam salvas no perfil ativo.
+- Troque de perfil pela página **Perfis** ou pelo menu da bandeja (**Perfil**). Os dispositivos do perfil anterior voltam ao modo que tinham.
+- As credenciais da lâmpada (Device ID, local key, IP) valem para todos os perfis. Os perfis ficam no `config.json`, junto com o resto da configuração.
 
 ## OpenRGB
 
@@ -97,12 +108,12 @@ Lâmpadas com firmware **Tuya**: Elgin Smart (por exemplo, a Smart Color A70 15 
 
 O controle local precisa do **Device ID** e da **local key**. A local key é obtida uma única vez pela nuvem da Tuya:
 
-1. Crie uma conta em **[platform.tuya.com](https://platform.tuya.com)**.
+1. Crie uma conta de desenvolvedor (gratuita) em **[auth.tuya.com](https://auth.tuya.com/)** e entre em **[platform.tuya.com](https://platform.tuya.com)**.
 2. Vá em **Cloud → Development → Create Cloud Project**, com *Industry* = Smart Home, *Development Method* = Smart Home e o data center da sua conta (para o Brasil, **Western America**).
 3. No projeto, abra **Devices → Link App Account → Add App Account → Tuya App Account Authorization** e escaneie o QR code pelo app **Smart Life** (aba **Eu**, ícone de scanner).
    > ⚠️ Apps de marca própria (como o **Elgin Smart**) não autorizam esse QR code: ele aparece como *"QR code has expired"*. Remova a lâmpada do app da marca, adicione no **Smart Life** e escaneie por ele.
 4. Copie o **Access ID** e o **Access Secret** na aba **Overview** do projeto.
-5. Em **Dispositivos → Lâmpada Wi-Fi**, ative *Usar*, clique em *Não tem a local key? Buscar na nuvem Tuya*, informe região, Access ID e Secret, clique em *Buscar dispositivos* e depois em *Usar selecionado*. O Secret não é salvo.
+5. Em **Dispositivos → Lâmpada Wi-Fi** (num perfil com a lâmpada ativa), abra *Não tem a local key? Passo a passo da conta Tuya e busca na nuvem* (o mesmo passo a passo está no app), informe região, Access ID e Secret, clique em *Buscar dispositivos* e depois em *Usar selecionado*. O Secret não é salvo.
 
 > Se você parear a lâmpada de novo em algum app, a local key muda e esse passo precisa ser repetido.
 
@@ -115,7 +126,7 @@ O controle local precisa do **Device ID** e da **local key**. A local key é obt
 ## Uso
 
 - **Bandeja**: um duplo clique abre a janela; o clique direito pausa os sinais. Com a lâmpada ativa, o clique esquerdo liga/desliga e o menu mostra cores, branco e brilho. O ícone assume a cor do último sinal.
-- **Janela**: *Visão geral* (o que falta configurar e testes), *Sinais*, *Dispositivos* e *Sistema* (hooks, administrador, inicialização com o Windows, log).
+- **Janela**: *Visão geral* (o que falta configurar e testes), *Sinais*, *Dispositivos*, *Perfis*, *Sistema* (hooks, administrador, inicialização com o Windows, log) e *Solução de problemas*.
 - Fechar a janela não encerra o app. Para sair, use **Sair** no menu da bandeja.
 - Se um sinal chegar com o app fechado, o hook abre o Claude Color na bandeja (pela Tarefa Agendada elevada, se existir) e o sinal é executado assim que ele inicia. Isso pode ser desligado em **Sistema**.
 
@@ -147,6 +158,7 @@ src/ClaudeColor.Core          config, eventos e sinais, hooks, pipe, roteamento 
   ClaudeHookEvents.cs           evento do hook → sinal; execução dos sinais
   LightTargets.cs               ILightTarget (qualquer coisa que acende durante um sinal)
   DeviceRouting.cs              quem controla cada dispositivo do OpenRGB
+  DeviceProfile.cs              perfis de controladores (o Padrão é só OpenRGB)
   TuyaLocalTransport.cs         protocolo local Tuya 3.3 / 3.4 / 3.5 (sessão HMAC + AES-ECB/GCM)
 src/ClaudeColor.Rgb           RGB do PC: OpenRGB (cliente próprio, protocolo 6), Corsair (RGB.NET), Logitech e MSI (P/Invoke)
 src/ClaudeColor.App           Windows Forms: bandeja, janela e SignalHost
@@ -174,9 +186,11 @@ O projeto se chamava ClaudeLamp. Na primeira execução, o Claude Color copia `%
 
 ## Solução de problemas
 
+A página **Solução de problemas** do app verifica tudo isso automaticamente para o perfil ativo. Os sintomas mais comuns:
+
 | Sintoma | O que verificar |
 |---|---|
-| Nada acende | Veja na **Visão geral** se os hooks estão instalados e se há um dispositivo ativo. Reinicie a sessão do Claude Code e consulte `log.txt`. |
+| Nada acende | Veja em **Solução de problemas** se os hooks estão instalados e se o perfil ativo tem um controlador. Reinicie a sessão do Claude Code e consulte `log.txt`. |
 | OpenRGB não lista memória ou placa-mãe | Rode o OpenRGB (ou o Claude Color, que o inicia) como administrador, e confira se o iCUE não está segurando o acesso. |
 | Cores "brigando" ou voltando sozinhas | Outro software está controlando o mesmo dispositivo. Desmarque-o no OpenRGB ou desligue a iluminação no software do fabricante. |
 | Fans não voltam ao modo original | Confira se o MasterCTRL (ou outro software) não está reaplicando as cores, e se o log mostra `openrgb: ... restaurado para '...'`. |

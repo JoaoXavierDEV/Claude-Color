@@ -128,3 +128,102 @@ public class DeviceRoutingTests
         Assert.Equal("tipo 99", DeviceRouting.TypeName(99));
     }
 }
+
+public class ProfileTests
+{
+    [Fact]
+    public void Fresh_config_has_only_default_profile_with_openrgb()
+    {
+        var cfg = new AppConfig();
+        Assert.True(cfg.EnsureProfiles());
+        var p = Assert.Single(cfg.Profiles);
+        Assert.Equal(Profiles.DefaultName, p.Name);
+        Assert.Equal(Profiles.DefaultName, cfg.ActiveProfile);
+        Assert.True(cfg.ActiveIsDefault());
+        Assert.True(cfg.PcRgb.OpenRgb.Enabled);
+        Assert.Null(cfg.PcRgb.OpenRgb.Devices);
+        Assert.False(cfg.PcRgb.Corsair || cfg.PcRgb.Logitech || cfg.PcRgb.Msi || cfg.Lamp.Enabled);
+        Assert.False(cfg.EnsureProfiles());
+    }
+
+    [Fact]
+    public void Existing_custom_setup_is_imported_and_kept_active()
+    {
+        var cfg = new AppConfig();
+        cfg.PcRgb.Corsair = true;
+        cfg.PcRgb.Msi = true;
+        cfg.PcRgb.OpenRgb.Devices = ["CoolerMaster ARGB"];
+        cfg.Lamp.Enabled = true;
+
+        Assert.True(cfg.EnsureProfiles());
+        Assert.Equal(2, cfg.Profiles.Count);
+        Assert.Equal(Profiles.ImportedName, cfg.ActiveProfile);
+        Assert.True(cfg.PcRgb.Corsair);
+        Assert.Equal(["CoolerMaster ARGB"], cfg.PcRgb.OpenRgb.Devices);
+        Assert.Equal("OpenRGB (1 dispositivo), Corsair iCUE, MSI Mystic Light, lâmpada Wi-Fi", cfg.Active().Summary());
+    }
+
+    [Fact]
+    public void Activating_copies_choices_and_default_never_changes()
+    {
+        var cfg = new AppConfig();
+        cfg.EnsureProfiles();
+        var mine = cfg.CreateProfile("Meu PC", Profiles.DefaultName);
+        mine.Corsair = true;
+        mine.OpenRgbDevices = ["A"];
+
+        cfg.ActivateProfile("meu pc");
+        Assert.Equal("Meu PC", cfg.ActiveProfile);
+        Assert.True(cfg.PcRgb.Corsair);
+        Assert.Equal(["A"], cfg.PcRgb.OpenRgb.Devices);
+
+        cfg.PcRgb.Logitech = true;
+        cfg.SaveActiveProfile();
+        Assert.True(cfg.Find("Meu PC")!.Logitech);
+
+        cfg.ActivateProfile(Profiles.DefaultName);
+        Assert.False(cfg.PcRgb.Corsair || cfg.PcRgb.Logitech);
+        cfg.PcRgb.Msi = true;          // editado com o Padrão ativo...
+        cfg.SaveActiveProfile();
+        Assert.False(cfg.PcRgb.Msi);   // ...é desfeito
+        Assert.True(cfg.Active().IsDefaultSetup);
+    }
+
+    [Fact]
+    public void Default_cannot_be_renamed_or_deleted_and_deleting_active_falls_back()
+    {
+        var cfg = new AppConfig();
+        cfg.EnsureProfiles();
+        Assert.Throws<InvalidOperationException>(() => cfg.RenameProfile(Profiles.DefaultName, "X"));
+        Assert.Throws<InvalidOperationException>(() => cfg.DeleteProfile(Profiles.DefaultName));
+        Assert.Throws<InvalidOperationException>(() => cfg.CreateProfile("padrão", Profiles.DefaultName));
+
+        var p = cfg.CreateProfile("A", Profiles.DefaultName);
+        p.Msi = true;
+        cfg.ActivateProfile("A");
+        cfg.RenameProfile("A", "B");
+        Assert.Equal("B", cfg.ActiveProfile);
+        cfg.DeleteProfile("B");
+        Assert.Equal(Profiles.DefaultName, cfg.ActiveProfile);
+        Assert.False(cfg.PcRgb.Msi);
+        Assert.Equal("Perfil 2", new AppConfig { Profiles = [new() { Name = "Perfil" }] }.FreeName("Perfil"));
+    }
+
+    [Fact]
+    public void Hand_edited_json_is_repaired_and_round_trips()
+    {
+        var json = """
+            { "activeProfile": "sumiu",
+              "profiles": [ { "name": "Padrão", "corsair": true }, { "name": "X", "msi": true }, { "name": "x" }, { "name": "" } ] }
+            """;
+        var cfg = JsonSerializer.Deserialize<AppConfig>(json, Storage.Json)!;
+        Assert.True(cfg.EnsureProfiles());
+        Assert.Equal(["Padrão", "X"], cfg.Profiles.Select(p => p.Name));
+        Assert.True(cfg.Find(Profiles.DefaultName)!.IsDefaultSetup);
+        Assert.Equal(Profiles.DefaultName, cfg.ActiveProfile);
+
+        var again = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(cfg, Storage.Json), Storage.Json)!;
+        Assert.False(again.EnsureProfiles());
+        Assert.True(again.Find("X")!.Msi);
+    }
+}

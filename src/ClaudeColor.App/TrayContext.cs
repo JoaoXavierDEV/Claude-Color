@@ -63,6 +63,9 @@ internal sealed class TrayContext : ApplicationContext
         menu.Items.Add(lampSeparator);
         ToolStripItem[] lampItems = [lampHeader, on, off, colors, white, bright, lampSeparator];
 
+        var profiles = new ToolStripMenuItem("Perfil");
+        menu.Items.Add(profiles);
+
         _signalsItem = new ToolStripMenuItem("Sinais do Claude Code") { CheckOnClick = true };
         _signalsItem.Click += (_, _) => ToggleSignals();
         menu.Items.Add(_signalsItem);
@@ -73,6 +76,17 @@ internal sealed class TrayContext : ApplicationContext
             var cfg = Storage.LoadConfig();
             _signalsItem.Checked = cfg.SignalsEnabled;
             foreach (var item in lampItems) item.Visible = cfg.Lamp.IsActive;
+            profiles.DropDownItems.Clear();
+            foreach (var p in cfg.Profiles)
+            {
+                var name = p.Name;
+                profiles.DropDownItems.Add(new ToolStripMenuItem(name, null, async (_, _) => await SwitchProfileAsync(name))
+                {
+                    Checked = string.Equals(name, cfg.ActiveProfile, StringComparison.OrdinalIgnoreCase),
+                    ToolTipText = p.Summary(),
+                });
+            }
+            profiles.Text = $"Perfil: {cfg.ActiveProfile}";
         };
 
         _icon = new NotifyIcon { ContextMenuStrip = menu, Visible = true, Text = "Claude Color" };
@@ -144,6 +158,20 @@ internal sealed class TrayContext : ApplicationContext
         catch (Exception ex)
         {
             Storage.Log($"tray: {ex}");
+            _icon.ShowBalloonTip(4000, "Claude Color", ex.Message, ToolTipIcon.Error);
+        }
+    }
+
+    private async Task SwitchProfileAsync(string name)
+    {
+        try
+        {
+            await ProfileService.ActivateAsync(name);
+            _icon.ShowBalloonTip(2000, "Claude Color", $"Perfil \"{name}\": {Storage.LoadConfig().Active().Summary()}", ToolTipIcon.Info);
+        }
+        catch (Exception ex)
+        {
+            Storage.Log($"tray: perfil: {ex}");
             _icon.ShowBalloonTip(4000, "Claude Color", ex.Message, ToolTipIcon.Error);
         }
     }

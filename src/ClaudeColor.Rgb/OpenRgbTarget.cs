@@ -69,6 +69,9 @@ public sealed class OpenRgbTarget(Func<PcRgbConfig> pcConfig) : ILightTarget
         }
     }
 
+    /// <summary>O servidor SDK do OpenRGB responde?</summary>
+    public static bool ServerResponds(OpenRgbConfig cfg) => PortOpen(cfg.Host, cfg.Port);
+
     private static bool PortOpen(string host, int port)
     {
         try

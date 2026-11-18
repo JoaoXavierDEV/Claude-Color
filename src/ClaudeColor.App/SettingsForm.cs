@@ -41,8 +41,10 @@ internal sealed class SettingsForm : Form
 
         AddPage(new OverviewPage(Navigate));
         AddPage(new SignalsPage());
-        AddPage(new DevicesPage());
+        AddPage(new DevicesPage(Navigate));
+        AddPage(new ProfilesPage(Navigate));
         AddPage(new SystemPage());
+        AddPage(new TroubleshootingPage(Navigate));
         Navigate(typeof(OverviewPage));
 
         _refresh.Tick += (_, _) => RefreshSignal();

@@ -49,7 +49,7 @@ internal sealed class LampConnectionPanel : FlowLayoutPanel
         Controls.Add(_output);
 
         // Nuvem: só para obter a local key, uma vez.
-        var toggleCloud = new LinkLabel { Text = "Não tem a local key? Buscar na nuvem Tuya", AutoSize = true, Margin = new Padding(0, 10, 0, 4), LinkColor = Ui.Accent, Font = Ui.Body };
+        var toggleCloud = new LinkLabel { Text = "Não tem a local key? Passo a passo da conta Tuya e busca na nuvem", AutoSize = true, Margin = new Padding(0, 10, 0, 4), LinkColor = Ui.Accent, Font = Ui.Body };
         Controls.Add(toggleCloud);
 
         _fetchBtn = Ui.Button("Buscar dispositivos", async (_, _) => await FetchAsync());
@@ -63,13 +63,53 @@ internal sealed class LampConnectionPanel : FlowLayoutPanel
             AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false,
             Visible = false, Margin = new Padding(16, 0, 0, 0),
         };
-        _cloud.Controls.Add(Ui.Hint("platform.tuya.com → seu projeto → Overview. Vincule a conta pelo app Smart Life. O Secret não é salvo."));
+        AddTuyaGuide(_cloud);
         _cloud.Controls.Add(cloudForm);
         _cloud.Controls.Add(Ui.Row(_fetchBtn, _cloudStatus));
         _cloud.Controls.Add(_devices);
         _cloud.Controls.Add(_useBtn);
         Controls.Add(_cloud);
         toggleCloud.LinkClicked += (_, _) => _cloud.Visible = !_cloud.Visible;
+    }
+
+    /// <summary>Passo a passo para obter Access ID / Secret na plataforma Tuya (feito uma única vez).</summary>
+    private static void AddTuyaGuide(FlowLayoutPanel panel)
+    {
+        const int width = 620;
+        Label Step(string text)
+        {
+            var l = Ui.Hint(text);
+            l.MaximumSize = new Size(width, 0);
+            l.ForeColor = Ui.Text;
+            l.Margin = new Padding(0, 4, 0, 0);
+            return l;
+        }
+        Control Links(params LinkLabel[] links)
+        {
+            var row = Ui.Row(links);
+            row.Margin = new Padding(16, 0, 0, 2);
+            return row;
+        }
+
+        panel.Controls.Add(new Label { Text = "Como obter a local key (uma vez só)", AutoSize = true, Font = Ui.BodyBold, ForeColor = Ui.Text, Margin = new Padding(0, 4, 0, 0) });
+        panel.Controls.Add(Step("1. Crie uma conta de desenvolvedor Tuya (gratuita). Qualquer e-mail serve; não precisa ser o do app Smart Life."));
+        panel.Controls.Add(Links(Ui.Link("Criar conta em auth.tuya.com", "https://auth.tuya.com/")));
+        panel.Controls.Add(Step("2. Entre na plataforma e crie um projeto: Cloud → Development → Create Cloud Project. " +
+                                "Industry = Smart Home, Development Method = Smart Home e o data center da sua conta (Brasil: Western America)."));
+        panel.Controls.Add(Links(Ui.Link("Abrir platform.tuya.com", "https://platform.tuya.com/")));
+        panel.Controls.Add(Step("3. No projeto: Devices → Link App Account → Add App Account → Tuya App Account Authorization, " +
+                                "e escaneie o QR code pelo app Smart Life (aba Eu, ícone de scanner)."));
+        var warn = Step("Apps de marca própria (Elgin Smart e outros) mostram \"QR code has expired\": remova a lâmpada do app da marca, " +
+                        "adicione-a no Smart Life e escaneie por ele.");
+        warn.ForeColor = Ui.Warn;
+        warn.Margin = new Padding(16, 2, 0, 0);
+        panel.Controls.Add(warn);
+        panel.Controls.Add(Step("4. Na aba Overview do projeto, copie o Access ID e o Access Secret (use o ícone de copiar)."));
+        panel.Controls.Add(Step("5. Preencha abaixo, clique em Buscar dispositivos, escolha a lâmpada e clique em Usar selecionado. " +
+                                "O Secret não é salvo. Se parear a lâmpada de novo em algum app, a local key muda e este passo precisa ser repetido."));
+        var spacer = Step("");
+        spacer.Margin = new Padding(0, 2, 0, 2);
+        panel.Controls.Add(spacer);
     }
 
     public void Reload()
@@ -80,6 +120,7 @@ internal sealed class LampConnectionPanel : FlowLayoutPanel
         _localKey.Text = cfg.LocalKey ?? "";
         _protocol.SelectedItem = _protocol.Items.Contains(cfg.ProtocolVersion) ? cfg.ProtocolVersion : "3.3";
         _region.SelectedItem ??= "WesternAmerica";
+        if (!cfg.IsConfigured) _cloud.Visible = true; // ainda sem local key: o passo a passo já aparece aberto
     }
 
     private AppConfig Collect()

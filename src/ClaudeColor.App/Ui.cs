@@ -55,6 +55,27 @@ internal static class Ui
         return b;
     }
 
+    /// <summary>Link que abre um site no navegador.</summary>
+    public static LinkLabel Link(string text, string url) => Link(text, () => OpenUrl(url));
+
+    /// <summary>Link que executa uma ação.</summary>
+    public static LinkLabel Link(string text, Action onClick)
+    {
+        var l = new LinkLabel
+        {
+            Text = text, AutoSize = true, Margin = new Padding(0, 4, 8, 4), Font = Body, LinkColor = Accent,
+            ActiveLinkColor = ControlPaint.Dark(Accent, 0.1f), VisitedLinkColor = Accent,
+        };
+        l.LinkClicked += (_, _) => onClick();
+        return l;
+    }
+
+    public static void OpenUrl(string url)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception ex) { Storage.Log($"ui: abrir {url}: {ex.Message}"); }
+    }
+
     public static CheckBox Check(string text, bool bold = false) => new()
     {
         Text = text, AutoSize = true, Margin = new Padding(0, 6, 8, 4), ForeColor = Text, Font = bold ? BodyBold : Body,

@@ -48,4 +48,12 @@ internal static class LampService
         if (SignalRunner.Begin(cfg, evt) is not { } gen) return;
         SignalHost.Current?.Dispatch(evt, gen, cfg);
     }
+
+    /// <summary>Acende tudo do perfil ativo em amarelo por 5 s.</summary>
+    public static void TestAllDevices()
+    {
+        var cfg = Storage.LoadConfig();
+        cfg.Events[ClaudeEvents.Question] = new SignalConfig { Color = "#FFC000", Brightness = 100, Blink = 2, RestoreAfterSeconds = 5, PcRgb = true };
+        TestSignal(cfg, ClaudeEvents.Question);
+    }
 }
