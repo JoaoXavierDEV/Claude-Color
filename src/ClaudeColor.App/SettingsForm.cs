@@ -30,7 +30,7 @@ internal sealed class SettingsForm : Form
         brand.Margin = new Padding(20, 22, 0, 22);
         _nav = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Ui.Sidebar };
         _nav.Controls.Add(brand);
-        var footer = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.TopDown, BackColor = Ui.Sidebar };
+        var footer = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Ui.Sidebar };
         // Interruptor de tema: aplica na hora (a bandeja recria esta janela com a outra paleta).
         var themeSwitch = Ui.Link(Ui.Dark ? "◐  Tema claro" : "◐  Tema escuro", () => TrayContext.Current?.SetTheme(Ui.Dark ? "light" : "dark"));
         themeSwitch.LinkColor = themeSwitch.VisitedLinkColor = Ui.Muted;
