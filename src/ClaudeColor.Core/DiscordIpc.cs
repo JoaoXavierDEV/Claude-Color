@@ -102,16 +102,17 @@ public sealed record PresenceInfo(string Event, string? Project, DateTimeOffset?
 
         // Linha de cima: o estado (se ligado) e o título (se ligado). O ícone pequeno indica o estado de qualquer forma.
         var top = string.Join(" · ", new[] { d.ShowStatus ? Details(Event) : null, title }.Where(t => t is not null));
-        var activity = new JsonObject
+        var assets = new JsonObject
         {
-            ["assets"] = new JsonObject
-            {
-                ["large_image"] = d.ImageUrl("logo"),
-                ["large_text"] = Cut(title ?? "Claude Color"),
-                ["small_image"] = d.ImageUrl(Event),
-                ["small_text"] = Cut(eventLabel),
-            },
+            ["large_image"] = d.ImageUrl("logo"),
+            ["large_text"] = Cut(title ?? "Claude Color"),
         };
+        if (d.ShowStatusOrb)
+        {
+            assets["small_image"] = d.ImageUrl(Event);
+            assets["small_text"] = Cut(eventLabel);
+        }
+        var activity = new JsonObject { ["assets"] = assets };
         if (top.Length >= 2) activity["details"] = Cut(top);
         var state = string.Join(" · ", parts);
         if (state.Length >= 2) activity["state"] = Cut(state); // o Discord exige 2 a 128 caracteres

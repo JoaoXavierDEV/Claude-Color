@@ -120,6 +120,20 @@ public sealed class DiscordConfig
 
     public const string DefaultImageBase = "https://raw.githubusercontent.com/JoaoXavierDEV/claude-lamp/main/docs/discord/";
 
+    /// <summary>Orb de status: a imagem pequena, na cor do estado, no canto da imagem grande.</summary>
+    public bool ShowStatusOrb { get; set; } = true;
+
+    /// <summary>Galeria de GIFs para a imagem grande, listada pela API do GitHub (GIF novo no repo aparece sem recompilar).</summary>
+    public const string GalleryApi = "https://api.github.com/repos/JoaoXavierDEV/claude-lamp/contents/docs/discord/gallery";
+    public const string GalleryBase = DefaultImageBase + "gallery/";
+
+    /// <summary>Usada quando a API do GitHub não responde.</summary>
+    public static readonly string[] BuiltInGallery =
+        ["mascote.gif", "mascote-parado.gif", "mascote-ideia.gif", "mascote-bravo.gif", "mascote-mao.gif", "terminal.gif"];
+
+    public static bool IsValidImageUrl(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps;
+
     public static readonly string[] ImageKeys = ["logo", .. ClaudeEvents.All];
 
     public static Dictionary<string, string> DefaultImages() =>
@@ -137,7 +151,7 @@ public sealed class DiscordConfig
     }
 
     public string ImageUrl(string key) =>
-        Images is not null && Images.TryGetValue(key, out var url) && Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps
+        Images is not null && Images.TryGetValue(key, out var url) && IsValidImageUrl(url)
             ? url
             : $"{DefaultImageBase}{key}.gif";
 }

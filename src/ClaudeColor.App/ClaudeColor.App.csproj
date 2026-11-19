@@ -11,7 +11,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Version>2.2.0</Version>
+    <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\logo.png" LogicalName="logo.png" />
+    <EmbeddedResource Include="Assets\logo.ico" LogicalName="logo.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ClaudeColor.Core\ClaudeColor.Core.csproj" />

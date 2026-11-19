@@ -665,6 +665,20 @@ public class DiscordTests
     }
 
     [Fact]
+    public void Status_orb_can_be_hidden()
+    {
+        var d = new DiscordConfig();
+        var shown = new PresenceInfo(ClaudeEvents.Working, null, null).ToActivity(d, "Trabalhando");
+        Assert.NotNull(shown["assets"]!["small_image"]);
+
+        d.ShowStatusOrb = false;
+        var hidden = new PresenceInfo(ClaudeEvents.Working, null, null).ToActivity(d, "Trabalhando");
+        Assert.Null(hidden["assets"]!["small_image"]);
+        Assert.Null(hidden["assets"]!["small_text"]);
+        Assert.Equal(DiscordConfig.DefaultImageBase + "logo.gif", (string?)hidden["assets"]!["large_image"]);
+    }
+
+    [Fact]
     public void Image_urls_are_written_to_config_and_missing_keys_are_filled()
     {
         var fresh = new DiscordConfig();

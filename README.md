@@ -106,6 +106,8 @@ Modelo, título e tokens são lidos do transcript da sessão (o `transcript_path
 
 ![Página Discord](docs/discord.png)
 
+**Imagem do cartão**: no card **Imagem** da página Discord, escolha um GIF da galeria (os de [`docs/discord/gallery/`](docs/discord/gallery/), listados pelo GitHub: um GIF novo enviado para lá aparece no app sem recompilar) ou cole o link https de uma imagem sua. A prévia mostra o cartão com a imagem escolhida. Desmarque *Orb de status* para tirar a bolinha colorida do canto da imagem.
+
 **Imagens próprias**: no `config.json`, `discord.images` troca a imagem de cada chave (`logo`, `question`, `plan`, `permission`, `done`, `working`, `idle`) por uma URL https. GIFs animam. O app já grava as sete URLs padrão (os GIFs do repositório) no `config.json`: é só trocar o link e salvar, sem recompilar; o status no Discord pega a mudança na próxima atualização. Um link inválido (não https) volta ao GIF do repositório.
 
 ```json

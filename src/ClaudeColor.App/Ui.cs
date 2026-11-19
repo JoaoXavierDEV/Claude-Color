@@ -238,6 +238,23 @@ internal static class Ui
         return bmp;
     }
 
+    /// <summary>Logo do app (o mascote), 256 px. Quem recebe descarta.</summary>
+    public static Bitmap LogoBitmap()
+    {
+        using var s = typeof(Ui).Assembly.GetManifestResourceStream("logo.png")!;
+        return new Bitmap(s);
+    }
+
+    /// <summary>Ícone da janela (o mesmo do .exe). Compartilhado: não descarte.</summary>
+    public static Icon LogoIcon => _logoIcon ??= LoadLogoIcon();
+    private static Icon? _logoIcon;
+
+    private static Icon LoadLogoIcon()
+    {
+        using var s = typeof(Ui).Assembly.GetManifestResourceStream("logo.ico")!;
+        return new Icon(s);
+    }
+
     public static Icon SignalIcon(Color color)
     {
         using var bmp = SignalBitmap(color, 32);
@@ -380,6 +397,8 @@ internal abstract class Page : UserControl
 {
     private readonly FlowLayoutPanel _body;
     private readonly Label _subtitle;
+    // Espaço no fim da rolagem: o FlowLayoutPanel com AutoScroll ignora o Padding de baixo.
+    private readonly Panel _bottomSpace = new() { Size = new Size(1, 32), Margin = Padding.Empty, BackColor = Ui.Background };
 
     protected Page(string title, string subtitle)
     {
@@ -393,6 +412,7 @@ internal abstract class Page : UserControl
         _body.Controls.Add(new Label { Text = title, AutoSize = true, Font = Ui.PageTitle, ForeColor = Ui.Text, Margin = new Padding(0, 0, 0, 2) });
         _subtitle = new Label { Text = subtitle, AutoSize = true, Font = Ui.Body, ForeColor = Ui.Muted, Margin = new Padding(0, 0, 0, 16) };
         _body.Controls.Add(_subtitle);
+        _body.Controls.Add(_bottomSpace);
         _body.Resize += (_, _) => Relayout();
         Controls.Add(_body);
     }
@@ -405,6 +425,7 @@ internal abstract class Page : UserControl
     protected T Add<T>(T control) where T : Control
     {
         _body.Controls.Add(control);
+        _body.Controls.SetChildIndex(_bottomSpace, _body.Controls.Count - 1);
         Relayout();
         return control;
     }

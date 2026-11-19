@@ -18,6 +18,8 @@ internal sealed class SettingsForm : Form
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         Text = "Claude Color";
+        Icon = Ui.LogoIcon;
+        _logo.Image = Ui.LogoBitmap();
         Font = Ui.Body;
         BackColor = Ui.Background;
         ForeColor = Ui.Text;
@@ -94,7 +96,7 @@ internal sealed class SettingsForm : Form
 
     public void Navigate<T>() where T : Page => Navigate(typeof(T));
 
-    /// <summary>Ícone e rodapé acompanham o último sinal.</summary>
+    /// <summary>O rodapé acompanha o último sinal (a cor do estado fica no ícone da bandeja).</summary>
     private void RefreshSignal()
     {
         if (!Visible && _lastKey is not null) return;
@@ -103,10 +105,6 @@ internal sealed class SettingsForm : Form
         if (key == _lastKey) return;
         _lastKey = key;
         var cfg = Storage.LoadConfig();
-        var color = rt.LastSignal is { } evt && cfg.Events.TryGetValue(evt, out var sig) ? Ui.ParseOr(sig.Color, Ui.Accent) : Ui.Accent;
-        var old = _logo.Image;
-        _logo.Image = Ui.SignalBitmap(color, 68);
-        old?.Dispose();
         _lastSignal.Text = rt.LastSignal is { } e && cfg.Events.ContainsKey(e)
             ? $"Último sinal: {SignalsPage.DisplayName(e)}\n{rt.LastSignalAt:dd/MM HH:mm}"
             : "";

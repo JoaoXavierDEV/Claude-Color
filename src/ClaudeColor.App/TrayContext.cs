@@ -148,7 +148,7 @@ internal sealed class TrayContext : ApplicationContext
         var state = old.WindowState;
         var bounds = state == FormWindowState.Normal ? old.Bounds : old.RestoreBounds;
 
-        _settings = new SettingsForm { StartPosition = FormStartPosition.Manual, Bounds = bounds, Icon = _currentIcon };
+        _settings = new SettingsForm { StartPosition = FormStartPosition.Manual, Bounds = bounds };
         if (page is not null) _settings.Navigate(page);
         if (visible)
         {
@@ -161,11 +161,7 @@ internal sealed class TrayContext : ApplicationContext
 
     public void ShowSettings()
     {
-        if (_settings is null || _settings.IsDisposed)
-        {
-            _settings = new SettingsForm();
-            _settings.Icon = _currentIcon;
-        }
+        if (_settings is null || _settings.IsDisposed) _settings = new SettingsForm();
         _settings.Show();
         if (_settings.WindowState == FormWindowState.Minimized) _settings.WindowState = FormWindowState.Normal;
         _settings.Activate();
@@ -248,7 +244,6 @@ internal sealed class TrayContext : ApplicationContext
         var old = _currentIcon;
         _currentIcon = Ui.SignalIcon(color);
         _icon.Icon = _currentIcon;
-        if (_settings is { IsDisposed: false }) _settings.Icon = _currentIcon;
         old?.Dispose();
     }
 
