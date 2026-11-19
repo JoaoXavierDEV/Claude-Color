@@ -10,7 +10,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>2.3.1</Version>
+    <Version>2.4.0</Version>
     <Product>Claude Color</Product>
     <AssemblyTitle>Claude Color</AssemblyTitle>
     <Company>João Fernando</Company>

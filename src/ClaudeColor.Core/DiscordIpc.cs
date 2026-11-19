@@ -117,6 +117,8 @@ public sealed record PresenceInfo(string Event, string? Project, DateTimeOffset?
         var state = string.Join(" · ", parts);
         if (state.Length >= 2) activity["state"] = Cut(state); // o Discord exige 2 a 128 caracteres
         if (d.ShowElapsed && Since is { } since) activity["timestamps"] = new JsonObject { ["start"] = since.ToUnixTimeSeconds() };
+        if (d.ShowGitHubButton)
+            activity["buttons"] = new JsonArray(new JsonObject { ["label"] = DiscordConfig.GitHubButtonLabel, ["url"] = DiscordConfig.RepositoryUrl });
         return activity;
     }
 }

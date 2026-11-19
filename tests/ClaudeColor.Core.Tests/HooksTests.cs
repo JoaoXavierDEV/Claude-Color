@@ -679,6 +679,26 @@ public class DiscordTests
     }
 
     [Fact]
+    public void GitHub_button_links_to_the_repository_and_can_be_hidden()
+    {
+        var d = new DiscordConfig();
+        var a = new PresenceInfo(ClaudeEvents.Working, null, null).ToActivity(d, "Trabalhando");
+        var button = Assert.Single(a["buttons"]!.AsArray())!;
+        Assert.Equal("View on GitHub", (string?)button["label"]);
+        Assert.Equal("https://github.com/JoaoXavierDEV/Claude-Color", (string?)button["url"]);
+
+        d.ShowGitHubButton = false;
+        Assert.Null(new PresenceInfo(ClaudeEvents.Working, null, null).ToActivity(d, "Trabalhando")["buttons"]);
+    }
+
+    [Fact]
+    public void GitHub_button_is_on_for_old_configs_without_the_setting()
+    {
+        var d = System.Text.Json.JsonSerializer.Deserialize<DiscordConfig>("""{"Enabled":true}""")!;
+        Assert.True(d.ShowGitHubButton);
+    }
+
+    [Fact]
     public void Image_urls_are_written_to_config_and_missing_keys_are_filled()
     {
         var fresh = new DiscordConfig();

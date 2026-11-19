@@ -94,14 +94,10 @@ internal sealed class TrayContext : ApplicationContext
         };
 
         _icon = new NotifyIcon { ContextMenuStrip = menu, Visible = true, Text = "Claude Color" };
-        // Clique: liga/desliga a lâmpada se houver; sem lâmpada, abre a janela.
-        _icon.MouseClick += (_, e) =>
-        {
-            if (e.Button != MouseButtons.Left) return;
-            if (Storage.LoadConfig().Lamp.IsActive) Apply(s => s.On = !s.On);
-            else ShowSettings();
-        };
-        _icon.DoubleClick += (_, _) => ShowSettings();
+        // Clique esquerdo abre a janela (a lâmpada liga/desliga pelo menu); o clique direito abre o menu.
+        _icon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowSettings(); };
+        // Clique no balão de aviso (ex.: hooks sem chegar) também abre a janela.
+        _icon.BalloonTipClicked += (_, _) => ShowSettings();
         UpdateIcon(IdleColor());
 
         _signalHost.QuitRequested += () => _invoker.BeginInvoke(ExitThread);

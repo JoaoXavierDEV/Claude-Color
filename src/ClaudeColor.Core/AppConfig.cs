@@ -123,6 +123,12 @@ public sealed class DiscordConfig
     /// <summary>Orb de status: a imagem pequena, na cor do estado, no canto da imagem grande.</summary>
     public bool ShowStatusOrb { get; set; } = true;
 
+    /// <summary>Botão "View on GitHub" no cartão, com o link do repositório (quem vê o seu perfil pode clicar).</summary>
+    public bool ShowGitHubButton { get; set; } = true;
+
+    public const string RepositoryUrl = "https://github.com/JoaoXavierDEV/Claude-Color";
+    public const string GitHubButtonLabel = "View on GitHub";
+
     /// <summary>Galeria de GIFs para a imagem grande, listada pela API do GitHub (GIF novo no repo aparece sem recompilar).</summary>
     public const string GalleryApi = "https://api.github.com/repos/JoaoXavierDEV/claude-lamp/contents/docs/discord/gallery";
     public const string GalleryBase = DefaultImageBase + "gallery/";
