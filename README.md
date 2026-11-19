@@ -88,13 +88,24 @@ Em **Sinais**, cada evento tem as colunas **Notificar** e **Piscar barra** (por 
 
 O Claude Color pode mostrar no seu perfil do Discord o que o Claude Code está fazendo, como um jogo: **"Jogando Claude Color · Aguardando você: pergunta"**, com o ícone na cor do sinal e o tempo de trabalho. Funciona com o Discord de desktop aberto; com várias sessões, mostra a mais urgente (mesma regra das luzes). "Terminou" fica 5 min e depois o status some.
 
-Configuração, uma vez:
-
-1. Em **[discord.com/developers/applications](https://discord.com/developers/applications)** → *New Application*, crie um aplicativo chamado **Claude Color** (é o nome que aparece em "Jogando ...").
-2. Em **Sistema → Discord**, clique em *Gerar imagens para o Discord*. No portal, em *Rich Presence → Art Assets*, envie cada PNG gerado **com o nome do arquivo como chave** (`logo`, `question`, `plan`, `permission`, `done`, `working`, `idle`).
-3. Copie o **Application ID** (*General Information*) para **Sistema → Discord**, marque *Mostrar o status no Discord* e clique em *Testar*.
+Para usar: em **Sistema → Discord**, marque *Mostrar o status no Discord* e clique em *Testar*. Não precisa criar nada no Discord Developer Portal: o aplicativo "Claude Color" já vem configurado, e as imagens (GIFs animados em [`docs/discord/`](docs/discord/)) são carregadas pela URL.
 
 *Mostrar o nome do projeto* vem desligado: com ele, amigos e servidores veem a pasta em que o Claude Code está.
+
+**Imagens próprias**: no `config.json`, `discord.images` troca a imagem de cada chave (`logo`, `question`, `plan`, `permission`, `done`, `working`, `idle`) por uma URL https. GIFs animam.
+
+```json
+"discord": {
+  "enabled": true,
+  "images": { "question": "https://exemplo.com/minha-pergunta.gif" }
+}
+```
+
+Imagens de terceiros continuam sendo dos donos: use no seu perfil por sua conta.
+
+**Usar outro aplicativo do Discord** (outro nome em "Jogando ..."): crie um em [discord.com/developers/applications](https://discord.com/developers/applications) e cole o *Application ID* em **Sistema → Discord**. No portal só o nome importa; *Art Assets* não é necessário.
+
+Para um status bem mais detalhado (modelo, ferramenta e arquivo atuais, tokens, estatísticas), veja o [claude-rpc](https://github.com/rar-file/claude-rpc). Ele lê os transcripts do Claude Code e envia totais para a nuvem. O Claude Color mostra só o estado de cada sessão e nada sai do PC.
 
 ## Perfis
 

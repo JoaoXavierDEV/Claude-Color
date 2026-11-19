@@ -94,6 +94,19 @@ public sealed class DiscordConfig
     public int ClearAfterMinutes { get; set; } = 5;
 
     public const string DefaultApplicationId = "1572975278500876358";
+
+    /// <summary>
+    /// Imagens por chave (logo, question, plan, permission, done, working, idle) → URL https. O Discord carrega e
+    /// anima GIFs direto da URL, sem upload no Developer Portal. Chave ausente = GIF do repositório.
+    /// </summary>
+    public Dictionary<string, string>? Images { get; set; }
+
+    public const string DefaultImageBase = "https://raw.githubusercontent.com/JoaoXavierDEV/claude-lamp/main/docs/discord/";
+
+    public string ImageUrl(string key) =>
+        Images is not null && Images.TryGetValue(key, out var url) && Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps
+            ? url
+            : $"{DefaultImageBase}{key}.gif";
 }
 
 /// <summary>Lâmpada Wi-Fi Tuya (opcional).</summary>

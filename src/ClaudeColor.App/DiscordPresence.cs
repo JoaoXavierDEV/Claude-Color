@@ -72,7 +72,7 @@ internal sealed class DiscordPresence : IDisposable
         PresenceInfo? info = DateTimeOffset.Now < _testUntil
             ? new PresenceInfo(ClaudeEvents.Question, "teste", null)
             : PresenceInfo.From(Storage.LoadState(), cfg, TimeSpan.FromMinutes(Math.Max(1, d.ClearAfterMinutes)));
-        var activity = info?.ToActivity(d.ShowProject, SignalsPage.DisplayName(info.Event));
+        var activity = info?.ToActivity(d.ShowProject, SignalsPage.DisplayName(info.Event), d.ImageUrl);
         var key = activity?.ToJsonString() ?? "null";
         if (key == _lastSent && Connected) return;
 

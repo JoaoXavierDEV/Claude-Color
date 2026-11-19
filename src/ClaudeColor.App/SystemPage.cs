@@ -101,12 +101,9 @@ internal sealed class SystemPage : Page
                     SignalHost.Current?.Discord.Test();
                     _discordStatus.Text = "●  Testando: \"Aguardando você: pergunta\" por 15 s...";
                 }),
-                Ui.Button("Gerar imagens para o Discord", (_, _) =>
-                {
-                    var folder = Path.Combine(Storage.Directory, "discord-assets");
-                    DiscordAssets.Save(folder);
-                    TrayContext.OpenPath(folder);
-                })));
+                Ui.Link("Abrir config.json", () => TrayContext.OpenPath(Storage.ConfigPath))),
+            discord.Wrap(Ui.Hint("As imagens vêm por URL (GIFs do repositório), sem nada para enviar no portal. Para usar outras, " +
+                                 "defina \"discord.images\" no config.json (chaves logo, question, plan, permission, done, working, idle).")));
 
         var uninstall = Add(new Card("Desinstalar",
             "Remove os hooks do Claude Code (com backup do settings.json), a tarefa agendada, a inicialização com o Windows e o registro " +

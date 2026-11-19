@@ -563,6 +563,22 @@ public class DiscordTests
     }
 
     [Fact]
+    public void Images_come_from_the_repository_unless_overridden_with_https()
+    {
+        var d = new DiscordConfig();
+        Assert.Equal(DiscordConfig.DefaultImageBase + "question.gif", d.ImageUrl("question"));
+        d.Images = new() { ["question"] = "https://exemplo.com/q.gif", ["plan"] = "http://inseguro/p.gif", ["done"] = "lixo" };
+        Assert.Equal("https://exemplo.com/q.gif", d.ImageUrl("question"));
+        Assert.Equal(DiscordConfig.DefaultImageBase + "plan.gif", d.ImageUrl("plan")); // só https
+        Assert.Equal(DiscordConfig.DefaultImageBase + "done.gif", d.ImageUrl("done"));
+        Assert.Equal(DiscordConfig.DefaultImageBase + "logo.gif", d.ImageUrl("logo"));
+
+        var a = new PresenceInfo(ClaudeEvents.Question, null, null).ToActivity(false, "Pergunta", d.ImageUrl);
+        Assert.Equal("https://exemplo.com/q.gif", (string?)a["assets"]!["small_image"]);
+        Assert.Equal(DiscordConfig.DefaultImageBase + "logo.gif", (string?)a["assets"]!["large_image"]);
+    }
+
+    [Fact]
     public void Presence_prefers_waiting_over_working_over_recent_done()
     {
         var cfg = new AppConfig();

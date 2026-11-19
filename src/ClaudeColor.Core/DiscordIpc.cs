@@ -75,16 +75,18 @@ public sealed record PresenceInfo(string Event, string? Project, DateTimeOffset?
     }
 
     /// <summary>A "activity" do SET_ACTIVITY. O projeto só entra com <paramref name="showProject"/>.</summary>
-    public JsonObject ToActivity(bool showProject, string eventLabel)
+    /// <param name="image">Chave (logo, question...) → URL ou chave de Art Asset.</param>
+    public JsonObject ToActivity(bool showProject, string eventLabel, Func<string, string>? image = null)
     {
+        image ??= key => key;
         var activity = new JsonObject
         {
             ["details"] = Details(Event),
             ["assets"] = new JsonObject
             {
-                ["large_image"] = "logo",
+                ["large_image"] = image("logo"),
                 ["large_text"] = "Claude Color",
-                ["small_image"] = Event,
+                ["small_image"] = image(Event),
                 ["small_text"] = eventLabel,
             },
         };
