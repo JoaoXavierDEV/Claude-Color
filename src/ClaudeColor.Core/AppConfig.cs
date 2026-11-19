@@ -82,6 +82,20 @@ public sealed class QuietConfig
     public bool SkipLights { get; set; }
 }
 
+/// <summary>Status no perfil do Discord (Rich Presence). Desligado por padrão.</summary>
+public sealed class DiscordConfig
+{
+    public bool Enabled { get; set; }
+    /// <summary>Mostra "em &lt;projeto&gt;": amigos e servidores veem o nome da pasta.</summary>
+    public bool ShowProject { get; set; }
+    /// <summary>Application ID do aplicativo "Claude Color" no Discord Developer Portal (público).</summary>
+    public string ApplicationId { get; set; } = DefaultApplicationId;
+    /// <summary>Minutos que "Terminou" fica no perfil antes de o status sumir.</summary>
+    public int ClearAfterMinutes { get; set; } = 5;
+
+    public const string DefaultApplicationId = "1572975278500876358";
+}
+
 /// <summary>Lâmpada Wi-Fi Tuya (opcional).</summary>
 public sealed class LampConfig
 {
@@ -115,6 +129,7 @@ public sealed class AppConfig
     public PcRgbConfig PcRgb { get; set; } = new();
     public LampConfig Lamp { get; set; } = new();
     public QuietConfig Quiet { get; set; } = new();
+    public DiscordConfig Discord { get; set; } = new();
 
     /// <summary>Combinações de controladores. O "Padrão" (só OpenRGB) sempre existe. Veja <see cref="Profiles"/>.</summary>
     public List<DeviceProfile> Profiles { get; set; } = [];

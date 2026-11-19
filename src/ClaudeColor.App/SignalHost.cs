@@ -17,6 +17,9 @@ internal sealed class SignalHost : IDisposable
     private readonly object _lock = new();
     private CancellationTokenSource? _running;
 
+    /// <summary>Status no perfil do Discord (opcional, desligado por padrão).</summary>
+    public DiscordPresence Discord { get; } = new();
+
     /// <summary>Alguém pediu pelo pipe para o app sair ("ClaudeColor.exe --exit").</summary>
     public event Action? QuitRequested;
 
@@ -83,6 +86,7 @@ internal sealed class SignalHost : IDisposable
         var cfg = cfgOverride ?? Storage.LoadConfig();
         // Notificação: independe das luzes (funciona mesmo sem nenhum dispositivo RGB).
         if (cfgOverride is null || session is not null) Notifier.Signal(cfg, evt, session ?? SessionInfo.None);
+        Discord.Refresh();
         CancellationTokenSource cts;
         lock (_lock)
         {
@@ -133,6 +137,7 @@ internal sealed class SignalHost : IDisposable
         lock (_lock) _running?.Cancel();
         try { PcRgb.ReleaseAllAsync().Wait(2000); } catch { }
         PcRgb.Dispose();
+        Discord.Dispose();
         Current = null;
     }
 }

@@ -24,7 +24,8 @@ jobs:
           $version = '${{ github.ref_name }}'.TrimStart('v')
           dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -p:Version=$version -o out
           $hash = (Get-FileHash out/ClaudeColor.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  ClaudeColor.exe" | Set-Content out/SHA256SUMS.txt -Encoding ascii
+          # Quebra de linha LF: "sha256sum -c SHA256SUMS.txt" também funciona fora do Windows.
+          [IO.File]::WriteAllText("$PWD/out/SHA256SUMS.txt", "$hash  ClaudeColor.exe`n")
       - name: Create release
         shell: pwsh
         env:

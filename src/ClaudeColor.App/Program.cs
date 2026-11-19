@@ -42,6 +42,12 @@ internal static class Program
                     return 0;
                 }
 
+                // Imagens (512×512) para enviar ao aplicativo no Discord Developer Portal → Rich Presence → Art Assets.
+                case "--discord-assets" when args.Length >= 2:
+                    ApplicationConfiguration.Initialize();
+                    DiscordAssets.Save(args[1]);
+                    return 0;
+
                 // Remove hooks, tarefa agendada, inicialização e notificações; --purge apaga também os dados.
                 case "uninstall":
                     ApplicationConfiguration.Initialize();

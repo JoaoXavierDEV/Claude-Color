@@ -84,6 +84,18 @@ Em **Sinais**, cada evento tem as colunas **Notificar** e **Piscar barra** (por 
 - O hook descobre a janela subindo pelos processos que o iniciaram: o console (Windows Terminal ou o console clássico) ou a primeira janela visível de um processo pai (VS Code, JetBrains...).
 - Em **Sistema → Notificações e tela cheia**: quando o Windows indica jogo ou vídeo em tela cheia, apresentação ou horário silencioso, o app pode segurar as notificações, a barra de tarefas e, se você quiser, as luzes. O "Não incomodar" do Windows já guarda as notificações na central, sem som.
 
+## Discord
+
+O Claude Color pode mostrar no seu perfil do Discord o que o Claude Code está fazendo, como um jogo: **"Jogando Claude Color · Aguardando você: pergunta"**, com o ícone na cor do sinal e o tempo de trabalho. Funciona com o Discord de desktop aberto; com várias sessões, mostra a mais urgente (mesma regra das luzes). "Terminou" fica 5 min e depois o status some.
+
+Configuração, uma vez:
+
+1. Em **[discord.com/developers/applications](https://discord.com/developers/applications)** → *New Application*, crie um aplicativo chamado **Claude Color** (é o nome que aparece em "Jogando ...").
+2. Em **Sistema → Discord**, clique em *Gerar imagens para o Discord*. No portal, em *Rich Presence → Art Assets*, envie cada PNG gerado **com o nome do arquivo como chave** (`logo`, `question`, `plan`, `permission`, `done`, `working`, `idle`).
+3. Copie o **Application ID** (*General Information*) para **Sistema → Discord**, marque *Mostrar o status no Discord* e clique em *Testar*.
+
+*Mostrar o nome do projeto* vem desligado: com ele, amigos e servidores veem a pasta em que o Claude Code está.
+
 ## Perfis
 
 Um perfil é uma combinação de controladores: OpenRGB (e quais dispositivos dele), iCUE, G HUB, Mystic Light e lâmpada.

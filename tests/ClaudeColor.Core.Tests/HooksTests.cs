@@ -527,3 +527,62 @@ public class SessionStateTests
         public void Dispose() { }
     }
 }
+
+
+[Collection("Storage")]
+public class DiscordTests
+{
+    [Fact]
+    public void Frames_are_little_endian_with_utf8_body()
+    {
+        var frame = DiscordIpc.Encode(DiscordIpc.Op.Frame, """{"a":"é"}""");
+        Assert.Equal([1, 0, 0, 0, 10, 0, 0, 0], frame[..8]);
+        Assert.Equal((DiscordIpc.Op.Frame, 10), DiscordIpc.DecodeHeader(frame));
+        Assert.Equal("""{"a":"é"}""", System.Text.Encoding.UTF8.GetString(frame, 8, 10));
+        Assert.Equal("""{"v":1,"client_id":"123"}""", DiscordIpc.Handshake("123"));
+    }
+
+    [Fact]
+    public void Activity_hides_project_unless_allowed_and_null_clears()
+    {
+        var since = DateTimeOffset.FromUnixTimeSeconds(1_700_000_000);
+        var info = new PresenceInfo(ClaudeEvents.Working, "meu \"projeto\"", since);
+        var hidden = info.ToActivity(showProject: false, "Trabalhando");
+        Assert.Null(hidden["state"]);
+        Assert.Equal("Trabalhando", (string?)hidden["details"]);
+        Assert.Equal(1_700_000_000L, (long?)hidden["timestamps"]!["start"]);
+        Assert.Equal("working", (string?)hidden["assets"]!["small_image"]);
+
+        var shown = info.ToActivity(showProject: true, "Trabalhando");
+        Assert.Equal("em meu \"projeto\"", (string?)shown["state"]);
+
+        var json = DiscordIpc.SetActivity(42, shown, "n1");
+        var parsed = System.Text.Json.Nodes.JsonNode.Parse(json)!; // aspas do projeto escapadas corretamente
+        Assert.Equal("em meu \"projeto\"", (string?)parsed["args"]!["activity"]!["state"]);
+        Assert.Contains("\"activity\":null", DiscordIpc.SetActivity(42, null, "n2"));
+    }
+
+    [Fact]
+    public void Presence_prefers_waiting_over_working_over_recent_done()
+    {
+        var cfg = new AppConfig();
+        cfg.Events[ClaudeEvents.Working].HoldWhileWorking = true;
+        var st = new RuntimeState();
+        st.Session("a").WorkingSince = DateTimeOffset.Now.AddMinutes(-3);
+        st.Session("a").Project = "proj-a";
+        st.Session("b").WaitingFor = ClaudeEvents.Question;
+        st.Session("b").Project = "proj-b";
+        Assert.Equal(new PresenceInfo(ClaudeEvents.Question, "proj-b", null), PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5)));
+
+        st.Session("b").WaitingFor = null;
+        var working = PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5))!;
+        Assert.Equal((ClaudeEvents.Working, "proj-a"), (working.Event, working.Project));
+
+        st.Session("a").WorkingSince = null;
+        st.LastSignal = ClaudeEvents.Done;
+        st.LastSignalAt = DateTimeOffset.Now.AddMinutes(-1);
+        Assert.Equal(ClaudeEvents.Done, PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5))!.Event);
+        st.LastSignalAt = DateTimeOffset.Now.AddMinutes(-10);
+        Assert.Null(PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5)));
+    }
+}
