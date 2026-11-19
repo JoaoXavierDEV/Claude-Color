@@ -233,11 +233,12 @@ internal sealed class TroubleshootingPage : Page
             var d = SignalHost.Current?.Discord;
             bool discordOpen = System.Diagnostics.Process.GetProcessesByName("Discord").Length > 0;
             list.Add(string.IsNullOrWhiteSpace(cfg.Discord.ApplicationId)
-                ? new Check("Discord", false, "Falta o Application ID do aplicativo criado no Discord Developer Portal (Sistema → Discord).",
+                ? new Check("Discord", false, "Falta o Application ID do aplicativo criado no Discord Developer Portal (página Discord).",
                     ("Abrir o Developer Portal", () => Ui.OpenUrl("https://discord.com/developers/applications")))
                 : !discordOpen
                     ? new Check("Discord", null, "O Discord de desktop não está aberto. O status aparece quando ele abrir.")
-                    : new Check("Discord", d?.Connected == true ? true : null, d?.Status ?? "O app ainda está iniciando."));
+                    : new Check("Discord", d?.Connected == true ? true : null, d?.Status ?? "O app ainda está iniciando.",
+                        ("Abrir a página Discord", () => Go(typeof(DiscordPage)))));
         }
 
         // Lâmpada

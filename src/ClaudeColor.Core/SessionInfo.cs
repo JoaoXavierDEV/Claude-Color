@@ -8,8 +8,23 @@ namespace ClaudeColor.Core;
 /// De onde veio o sinal: a janela do terminal (Windows Terminal, VS Code, console...) que roda a sessão
 /// do Claude Code e o nome do projeto (pasta de trabalho).
 /// </summary>
-public sealed record SessionInfo(long Window, string? Project, string? Id = null)
+public sealed record SessionInfo(long Window, string? Project, string? Id = null, string? TranscriptPath = null)
 {
+    /// <summary>"transcript_path" do JSON do hook: o JSONL da sessão (modelo, título, tokens).</summary>
+    public static string? TranscriptFromHook(string hookJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(hookJson);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("transcript_path", out var p) && p.ValueKind == JsonValueKind.String &&
+                p.GetString() is { Length: > 0 } path && path.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase))
+                return path;
+        }
+        catch (JsonException) { }
+        return null;
+    }
+
     public static readonly SessionInfo None = new(0, null);
 
     /// <summary>"session_id" do JSON do hook (null se ausente). Só letras, números, '-' e '_'.</summary>
@@ -64,7 +79,7 @@ public sealed record SessionInfo(long Window, string? Project, string? Id = null
         long window = 0;
         try { window = TerminalWindow.Find(); }
         catch (Exception ex) { Storage.Log($"sessão: janela não encontrada: {ex.Message}"); }
-        return new SessionInfo(window, ProjectFromHook(hookJson), IdFromHook(hookJson));
+        return new SessionInfo(window, ProjectFromHook(hookJson), IdFromHook(hookJson), TranscriptFromHook(hookJson));
     }
 }
 

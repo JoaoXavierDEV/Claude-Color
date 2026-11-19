@@ -54,6 +54,7 @@ internal static class LampService
     {
         var cfg = Storage.LoadConfig();
         cfg.Events[ClaudeEvents.Question] = new SignalConfig { Color = "#FFC000", Brightness = 100, Blink = 2, RestoreAfterSeconds = 5, PcRgb = true, Notify = false };
+        cfg.Discord.Enabled = false; // teste só das luzes: sem prévia no Discord
         TestSignal(cfg, ClaudeEvents.Question);
     }
 }

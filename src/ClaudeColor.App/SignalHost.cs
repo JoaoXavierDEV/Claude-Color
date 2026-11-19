@@ -86,7 +86,9 @@ internal sealed class SignalHost : IDisposable
         var cfg = cfgOverride ?? Storage.LoadConfig();
         // Notificação: independe das luzes (funciona mesmo sem nenhum dispositivo RGB).
         if (cfgOverride is null || session is not null) Notifier.Signal(cfg, evt, session ?? SessionInfo.None);
-        Discord.Refresh();
+        // Teste pela janela (config própria): mostra o evento no Discord por alguns segundos, como nas luzes.
+        if (cfgOverride is { Discord.Enabled: true } && evt != ClaudeEvents.Resumed) Discord.Preview(evt, TimeSpan.FromSeconds(8));
+        else Discord.Refresh();
         CancellationTokenSource cts;
         lock (_lock)
         {

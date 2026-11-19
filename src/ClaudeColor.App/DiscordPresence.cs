@@ -17,8 +17,11 @@ internal sealed class DiscordPresence : IDisposable
     private NamedPipeClientStream? _pipe;
     private string? _lastSent;
     private int _pending;
-    private DateTimeOffset _testUntil;
+    private DateTimeOffset _previewUntil;
+    private string _previewEvent = ClaudeEvents.Question;
     private bool _disposed;
+    /// <summary>Leitores incrementais por transcript (só as linhas novas são lidas a cada atualização).</summary>
+    private readonly Dictionary<string, TranscriptStats> _stats = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Último resultado, para a página Sistema e a Solução de problemas.</summary>
     public string Status { get; private set; } = "Desligado";
@@ -47,13 +50,19 @@ internal sealed class DiscordPresence : IDisposable
         });
     }
 
-    /// <summary>Mostra "Aguardando você: pergunta" por 15 s, para testar.</summary>
-    public void Test()
+    /// <summary>Mostra "Aguardando você: pergunta" por 15 s (botão Testar da página Discord).</summary>
+    public void Test() => Preview(ClaudeEvents.Question, TimeSpan.FromSeconds(15));
+
+    /// <summary>
+    /// Mostra um evento por um tempo e depois volta ao estado real. Usado pelos botões de teste, que não mexem no
+    /// "aguardando você" nem no "trabalhando" das sessões.
+    /// </summary>
+    public void Preview(string evt, TimeSpan duration)
     {
-        _testUntil = DateTimeOffset.Now.AddSeconds(15);
-        _lastSent = null;
+        _previewEvent = evt;
+        _previewUntil = DateTimeOffset.Now + duration;
         Refresh();
-        _ = Task.Delay(TimeSpan.FromSeconds(16)).ContinueWith(_ => { _lastSent = null; Refresh(); });
+        _ = Task.Delay(duration + TimeSpan.FromSeconds(1)).ContinueWith(_ => Refresh());
     }
 
     private async Task UpdateAsync()
@@ -69,10 +78,8 @@ internal sealed class DiscordPresence : IDisposable
             return;
         }
 
-        PresenceInfo? info = DateTimeOffset.Now < _testUntil
-            ? new PresenceInfo(ClaudeEvents.Question, "teste", null)
-            : PresenceInfo.From(Storage.LoadState(), cfg, TimeSpan.FromMinutes(Math.Max(1, d.ClearAfterMinutes)));
-        var activity = info?.ToActivity(d.ShowProject, SignalsPage.DisplayName(info.Event), d.ImageUrl);
+        var (info, details) = Snapshot(cfg);
+        var activity = info?.ToActivity(d, SignalsPage.DisplayName(info.Event), details);
         var key = activity?.ToJsonString() ?? "null";
         if (key == _lastSent && Connected) return;
 
@@ -85,6 +92,35 @@ internal sealed class DiscordPresence : IDisposable
         await SendAsync(activity);
         _lastSent = key;
         Status = info is null ? "Conectado (sem status agora)" : $"Conectado: {PresenceInfo.Details(info.Event)}";
+    }
+
+    /// <summary>
+    /// O que deveria aparecer agora: o evento (ou a prévia de um teste) e o modelo, título e tokens da sessão dele.
+    /// A página Discord usa o mesmo para a prévia.
+    /// </summary>
+    public (PresenceInfo? Info, PresenceDetails? Details) Snapshot(AppConfig cfg)
+    {
+        var st = Storage.LoadState();
+        PresenceInfo? info = DateTimeOffset.Now < _previewUntil
+            ? new PresenceInfo(_previewEvent, "teste", _previewEvent == ClaudeEvents.Working ? _previewUntil.AddSeconds(-8) : null, MostRecentSession(st))
+            : PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(Math.Max(1, cfg.Discord.ClearAfterMinutes)));
+        return (info, info is null ? null : DetailsFor(st, info.SessionId));
+    }
+
+    public static string? MostRecentSession(RuntimeState st) =>
+        st.Sessions.Where(x => x.Value.Transcript is not null).OrderByDescending(x => x.Value.LastSeen).Select(x => x.Key).FirstOrDefault();
+
+    /// <summary>Modelo, título e tokens da sessão (lê só o que o transcript ganhou desde a última vez).</summary>
+    public PresenceDetails? DetailsFor(RuntimeState st, string? sessionId)
+    {
+        if (st.Find(sessionId)?.Transcript is not { } path) return null;
+        lock (_stats)
+        {
+            if (!_stats.TryGetValue(path, out var stats)) _stats[path] = stats = new TranscriptStats(path);
+            try { stats.Update(); }
+            catch (IOException ex) { Storage.Log($"discord: transcript: {ex.Message}"); }
+            return new PresenceDetails(stats.Model, stats.Title, stats.ContextTokens);
+        }
     }
 
     private async Task<bool> ConnectAsync(string applicationId)

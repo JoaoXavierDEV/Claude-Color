@@ -51,6 +51,7 @@ internal sealed class SettingsForm : Form
         AddPage(new SignalsPage());
         AddPage(new DevicesPage(Navigate));
         AddPage(new ProfilesPage(Navigate));
+        AddPage(new DiscordPage());
         AddPage(new SystemPage());
         AddPage(new TroubleshootingPage(Navigate));
         Navigate(typeof(OverviewPage));

@@ -10,7 +10,7 @@ Funciona com o que você já tem:
 
 Terminado o sinal, cada dispositivo volta ao modo e às cores que tinha antes.
 
-Sem RGB nenhum também funciona: o Windows mostra uma **notificação** com o nome do projeto, e o botão do terminal da sessão (Windows Terminal, VS Code, console) **pisca na barra de tarefas** até você voltar para ele.
+Sem RGB nenhum também funciona: o Windows mostra uma **notificação** com o nome do projeto, e o botão do terminal da sessão (Windows Terminal, VS Code, console) **pisca na barra de tarefas** até você voltar para ele. E o seu perfil do **Discord** pode mostrar o que o Claude está fazendo, como um jogo (veja [Discord](#discord)).
 
 Feito em **.NET 10 / Windows Forms**, para Windows. É um único executável, que fica na bandeja do sistema.
 
@@ -86,11 +86,25 @@ Em **Sinais**, cada evento tem as colunas **Notificar** e **Piscar barra** (por 
 
 ## Discord
 
-O Claude Color pode mostrar no seu perfil do Discord o que o Claude Code está fazendo, como um jogo: **"Jogando Claude Color · Aguardando você: pergunta"**, com o ícone na cor do sinal e o tempo de trabalho. Funciona com o Discord de desktop aberto; com várias sessões, mostra a mais urgente (mesma regra das luzes). "Terminou" fica 5 min e depois o status some.
+O Claude Color pode mostrar no seu perfil do Discord o que o Claude Code está fazendo, como um jogo: **"Jogando Claude Color · Aguardando você: pergunta"**, com o ícone na cor do sinal e o tempo de trabalho. Funciona com o Discord de desktop aberto; com várias sessões, mostra a mais urgente (mesma regra das luzes). "Terminou" fica 5 min e depois o status some, a menos que *Mostrar quando ocioso* esteja ligado.
 
-Para usar: em **Sistema → Discord**, marque *Mostrar o status no Discord* e clique em *Testar*. Não precisa criar nada no Discord Developer Portal: o aplicativo "Claude Color" já vem configurado, e as imagens (GIFs animados em [`docs/discord/`](docs/discord/)) são carregadas pela URL.
+Para usar: na página **Discord**, marque *Mostrar o status no Discord* e clique em *Testar*. Não precisa criar nada no Discord Developer Portal: o aplicativo "Claude Color" já vem configurado, e as imagens (GIFs animados em [`docs/discord/`](docs/discord/)) são carregadas pela URL.
 
-*Mostrar o nome do projeto* vem desligado: com ele, amigos e servidores veem a pasta em que o Claude Code está.
+Na mesma página você escolhe o que aparece e vê uma **prévia** do cartão, igual ao que vai para o Discord:
+
+| Opção | Exemplo | Padrão |
+|---|---|---|
+| Mostrar quando ocioso (em vez de o status sumir) | Ocioso · Opus 5.5 | desligado |
+| Estado | Trabalhando, Terminou, Aguardando você: pergunta | ligado |
+| Modelo | Opus 5.5 | ligado |
+| Título da conversa | Página de perfis e solução de problemas | desligado |
+| Tokens no contexto (os mesmos do `/context`) | 128 mil tokens | desligado |
+| Nome da pasta | claude-lamp | desligado |
+| Tempo de trabalho | 12:34 decorridos | ligado |
+
+Modelo, título e tokens são lidos do transcript da sessão (o `transcript_path` que o Claude Code passa aos hooks), só as linhas novas a cada atualização. Título e pasta vêm desligados porque amigos e servidores veem o status e eles podem revelar o assunto ou o projeto.
+
+![Página Discord](docs/discord.png)
 
 **Imagens próprias**: no `config.json`, `discord.images` troca a imagem de cada chave (`logo`, `question`, `plan`, `permission`, `done`, `working`, `idle`) por uma URL https. GIFs animam.
 
@@ -103,9 +117,9 @@ Para usar: em **Sistema → Discord**, marque *Mostrar o status no Discord* e cl
 
 Imagens de terceiros continuam sendo dos donos: use no seu perfil por sua conta.
 
-**Usar outro aplicativo do Discord** (outro nome em "Jogando ..."): crie um em [discord.com/developers/applications](https://discord.com/developers/applications) e cole o *Application ID* em **Sistema → Discord**. No portal só o nome importa; *Art Assets* não é necessário.
+**Usar outro aplicativo do Discord** (outro nome em "Jogando ..."): crie um em [discord.com/developers/applications](https://discord.com/developers/applications) e cole o *Application ID* na página **Discord**. No portal só o nome importa; *Art Assets* não é necessário.
 
-Para um status bem mais detalhado (modelo, ferramenta e arquivo atuais, tokens, estatísticas), veja o [claude-rpc](https://github.com/rar-file/claude-rpc). Ele lê os transcripts do Claude Code e envia totais para a nuvem. O Claude Color mostra só o estado de cada sessão e nada sai do PC.
+Para um status ainda mais detalhado (ferramenta e arquivo atuais, estatísticas em rotação, ranking), veja o [claude-rpc](https://github.com/rar-file/claude-rpc), que envia totais para a nuvem. O Claude Color mostra o estado, o modelo, o título e os tokens da sessão, lidos no próprio PC, e nada sai dele além do status enviado ao Discord aberto.
 
 ## Perfis
 
@@ -189,7 +203,7 @@ O controle local precisa do **Device ID** e da **local key**. A local key é obt
 ## Uso
 
 - **Bandeja**: um duplo clique abre a janela; o clique direito pausa os sinais. Com a lâmpada ativa, o clique esquerdo liga/desliga e o menu mostra cores, branco e brilho. O ícone assume a cor do último sinal.
-- **Janela**: *Visão geral* (o que falta configurar e testes), *Sinais*, *Dispositivos*, *Perfis*, *Sistema* (hooks, administrador, inicialização com o Windows, notificações, log) e *Solução de problemas*.
+- **Janela**: *Visão geral* (o que falta configurar e testes), *Sinais*, *Dispositivos*, *Perfis*, *Discord*, *Sistema* (hooks, administrador, inicialização com o Windows, notificações, log) e *Solução de problemas*.
 - **Tema**: claro ou escuro, seguindo o Windows por padrão (modo escuro do Windows Forms no .NET 10, mais a paleta própria do app). O interruptor no fim do menu lateral, o item **Tema escuro** da bandeja e **Sistema → Tema da janela** trocam na hora.
 - **Várias sessões do Claude Code**: cada sessão tem o próprio "trabalhando" e "aguardando você". Se você responde numa sessão e outra ainda espera, as luzes voltam para a cor da que espera; a notificação de cada sessão é separada.
 - **Hooks vigiados**: a Visão geral e a Solução de problemas mostram quando chegou o último hook. Se o exe estiver marcado "Executar como administrador" (o Claude Code roda sem administrador e não consegue abri-lo), a bandeja avisa e mostra como desmarcar.
@@ -204,6 +218,7 @@ Claude Code ──hook (JSON no stdin)──► ClaudeColor.exe hook ──► m
                                             │
                      app na bandeja aberto? ├─ sim ─► named pipe "ClaudeColor.Signals" ─► app da bandeja
                                             │                                            ├─► notificação do Windows
+                                            │                                            ├─► Discord (IPC local, discord-ipc-0)
                                             │                                            ├─► OpenRGB (SDK protocolo 6)
                                             │                                            ├─► lâmpada (TCP 6668)
                                             │                                            ├─► iCUE SDK
@@ -227,9 +242,12 @@ src/ClaudeColor.Core          config, eventos e sinais, hooks, pipe, roteamento 
   LightTargets.cs               ILightTarget (qualquer coisa que acende durante um sinal)
   DeviceRouting.cs              quem controla cada dispositivo do OpenRGB
   DeviceProfile.cs              perfis de controladores (o Padrão é só OpenRGB)
+  SessionInfo.cs                sessão do hook: janela do terminal, projeto, session_id e transcript
+  DiscordIpc.cs                 protocolo local do Discord e o conteúdo do status
+  TranscriptStats.cs            modelo, título e tokens lidos do transcript, de forma incremental
   TuyaLocalTransport.cs         protocolo local Tuya 3.3 / 3.4 / 3.5 (sessão HMAC + AES-ECB/GCM)
 src/ClaudeColor.Rgb           RGB do PC: OpenRGB (cliente próprio, protocolo 6), Corsair (RGB.NET), Logitech e MSI (P/Invoke)
-src/ClaudeColor.App           Windows Forms: bandeja, janela e SignalHost
+src/ClaudeColor.App           Windows Forms: bandeja, janela, SignalHost, notificações e Discord (DiscordPresence, prévia)
 tests/ClaudeColor.Core.Tests  xUnit
 ```
 
@@ -245,7 +263,9 @@ dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o .\publish
 # prints do README (docs\*.png) com uma config de demonstração, nos dois temas:
 .\tools\screenshots.ps1
 # PNG de cada página da janela, para revisar o layout:
-& src\ClaudeColor.App\bin\Debug\net10.0-windows\ClaudeColor.exe --screenshots .\shots
+& src\ClaudeColor.App\bin\Debug\net10.0-windows10.0.26100.0\ClaudeColor.exe --screenshots .\shots --both-themes
+# GIFs do status no Discord (docs\discord\):
+& src\ClaudeColor.App\bin\Debug\net10.0-windows10.0.26100.0\ClaudeColor.exe --discord-assets .\docs\discord
 ```
 
 ## Vindo do ClaudeLamp (1.x)

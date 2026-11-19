@@ -88,6 +88,7 @@ public static class SignalRunner
             {
                 me.Window = session.Window == 0 ? me.Window : session.Window;
                 me.Project = session.Project ?? me.Project;
+                me.Transcript = session.TranscriptPath ?? me.Transcript;
             }
             if (evt == ClaudeEvents.Working) me.WorkingSince = sig.HoldWhileWorking ? DateTimeOffset.Now : null;
             else if (evt is ClaudeEvents.Done or ClaudeEvents.Idle) me.WorkingSince = null;

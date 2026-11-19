@@ -12,10 +12,6 @@ internal sealed class SystemPage : Page
     private readonly CheckBox _launchFromHook = Ui.Check("Abrir o Claude Color na bandeja quando o Claude Code mandar um sinal com o app fechado");
     private readonly Label _elevated = Ui.InlineStatus();
     private readonly Button _restartAdmin;
-    private readonly CheckBox _discordEnabled = Ui.Check("Mostrar o status no Discord");
-    private readonly CheckBox _discordProject = Ui.Check("Mostrar o nome do projeto");
-    private readonly TextBox _discordAppId = new() { Width = 220 };
-    private readonly Label _discordStatus = Ui.InlineStatus();
     private readonly ComboBox _theme = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 170 };
     private static readonly (string Key, string Label)[] Themes = [("system", "Seguir o Windows"), ("light", "Claro"), ("dark", "Escuro")];
     private readonly CheckBox _quietNotify = Ui.Check("Não mostrar notificações");
@@ -82,29 +78,6 @@ internal sealed class SystemPage : Page
                 Storage.SaveConfig(cfg);
             };
 
-        var discord = Add(new Card("Discord",
-            "Mostra no seu perfil do Discord o que o Claude Code está fazendo, como um jogo: \"Jogando Claude Color · Aguardando você: pergunta\". " +
-            "Precisa do Discord de desktop aberto e de um aplicativo criado no Discord Developer Portal (veja o README)."));
-        _discordEnabled.CheckedChanged += (_, _) => SaveDiscord();
-        _discordProject.CheckedChanged += (_, _) => SaveDiscord();
-        _discordAppId.Leave += (_, _) => SaveDiscord();
-        var appIdForm = Ui.Form(110);
-        Ui.AddField(appIdForm, "Application ID", _discordAppId,
-            Ui.Link("Abrir o Developer Portal", "https://discord.com/developers/applications"));
-        discord.Add(_discordEnabled, _discordProject,
-            discord.Wrap(Ui.Hint("O nome do projeto (a pasta em que o Claude Code está) fica visível para seus amigos e servidores.")),
-            appIdForm,
-            Ui.Row(_discordStatus,
-                Ui.Button("Testar", (_, _) =>
-                {
-                    SaveDiscord();
-                    SignalHost.Current?.Discord.Test();
-                    _discordStatus.Text = "●  Testando: \"Aguardando você: pergunta\" por 15 s...";
-                }),
-                Ui.Link("Abrir config.json", () => TrayContext.OpenPath(Storage.ConfigPath))),
-            discord.Wrap(Ui.Hint("As imagens vêm por URL (GIFs do repositório), sem nada para enviar no portal. Para usar outras, " +
-                                 "defina \"discord.images\" no config.json (chaves logo, question, plan, permission, done, working, idle).")));
-
         var uninstall = Add(new Card("Desinstalar",
             "Remove os hooks do Claude Code (com backup do settings.json), a tarefa agendada, a inicialização com o Windows e o registro " +
             "das notificações, devolve as luzes e fecha o app. O exe não se apaga sozinho: a pasta dele é aberta no fim para você apagar."));
@@ -150,11 +123,6 @@ internal sealed class SystemPage : Page
             var cfg = Storage.LoadConfig();
             _launchFromHook.Checked = cfg.LaunchFromHook;
             _theme.SelectedIndex = Math.Max(0, Array.FindIndex(Themes, t => t.Key == cfg.Theme));
-            _discordEnabled.Checked = cfg.Discord.Enabled;
-            _discordProject.Checked = cfg.Discord.ShowProject;
-            _discordAppId.Text = cfg.Discord.ApplicationId;
-            var discordStatus = SignalHost.Current?.Discord.Status ?? "Desligado";
-            Ui.SetStatus(_discordStatus, !cfg.Discord.Enabled ? null : SignalHost.Current?.Discord.Connected == true, discordStatus);
             _quietNotify.Checked = cfg.Quiet.SkipNotify;
             _quietFlash.Checked = cfg.Quiet.SkipFlash;
             _quietLights.Checked = cfg.Quiet.SkipLights;
@@ -167,17 +135,6 @@ internal sealed class SystemPage : Page
         }
         catch (Exception ex) { _status.ForeColor = Ui.Error; _status.Text = ex.Message; }
         finally { _loading = false; }
-    }
-
-    private void SaveDiscord()
-    {
-        if (_loading) return;
-        var cfg = Storage.LoadConfig();
-        cfg.Discord.Enabled = _discordEnabled.Checked;
-        cfg.Discord.ShowProject = _discordProject.Checked;
-        cfg.Discord.ApplicationId = new string(_discordAppId.Text.Where(char.IsAsciiDigit).ToArray());
-        Storage.SaveConfig(cfg);
-        SignalHost.Current?.Discord.Refresh();
     }
 
     private void Act(Func<string?> action, string done)

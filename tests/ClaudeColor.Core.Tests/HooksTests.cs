@@ -543,23 +543,109 @@ public class DiscordTests
     }
 
     [Fact]
-    public void Activity_hides_project_unless_allowed_and_null_clears()
+    public void Activity_shows_only_the_enabled_details_and_null_clears()
     {
         var since = DateTimeOffset.FromUnixTimeSeconds(1_700_000_000);
         var info = new PresenceInfo(ClaudeEvents.Working, "meu \"projeto\"", since);
-        var hidden = info.ToActivity(showProject: false, "Trabalhando");
-        Assert.Null(hidden["state"]);
-        Assert.Equal("Trabalhando", (string?)hidden["details"]);
-        Assert.Equal(1_700_000_000L, (long?)hidden["timestamps"]!["start"]);
-        Assert.Equal("working", (string?)hidden["assets"]!["small_image"]);
+        var x = new PresenceDetails("claude-opus-5-5", "Página de perfis", 128_400);
 
-        var shown = info.ToActivity(showProject: true, "Trabalhando");
-        Assert.Equal("em meu \"projeto\"", (string?)shown["state"]);
+        // Padrão: modelo e tempo; título, pasta e tokens desligados.
+        var d = new DiscordConfig();
+        var a = info.ToActivity(d, "Trabalhando", x);
+        Assert.Equal("Trabalhando", (string?)a["details"]);
+        Assert.Equal("Opus 5.5", (string?)a["state"]);
+        Assert.Equal("Claude Color", (string?)a["assets"]!["large_text"]);
+        Assert.Equal(1_700_000_000L, (long?)a["timestamps"]!["start"]);
+        Assert.Equal(d.ImageUrl("working"), (string?)a["assets"]!["small_image"]);
 
-        var json = DiscordIpc.SetActivity(42, shown, "n1");
-        var parsed = System.Text.Json.Nodes.JsonNode.Parse(json)!; // aspas do projeto escapadas corretamente
-        Assert.Equal("em meu \"projeto\"", (string?)parsed["args"]!["activity"]!["state"]);
+        // Tudo ligado.
+        d.ShowTitle = d.ShowProject = d.ShowTokens = true;
+        a = info.ToActivity(d, "Trabalhando", x);
+        Assert.Equal("Trabalhando · Página de perfis", (string?)a["details"]);
+        Assert.Equal("Opus 5.5 · meu \"projeto\" · 128 mil tokens", (string?)a["state"]);
+        Assert.Equal("Página de perfis", (string?)a["assets"]!["large_text"]);
+        var parsed = System.Text.Json.Nodes.JsonNode.Parse(DiscordIpc.SetActivity(42, a, "n1"))!; // aspas escapadas
+        Assert.Equal("Opus 5.5 · meu \"projeto\" · 128 mil tokens", (string?)parsed["args"]!["activity"]!["state"]);
+
+        // Sem a linha de estado: o título sobe sozinho; sem estado nem título, "details" some.
+        d.ShowStatus = false;
+        a = info.ToActivity(d, "Trabalhando", x);
+        Assert.Equal("Página de perfis", (string?)a["details"]);
+        d.ShowTitle = false;
+        Assert.Null(info.ToActivity(d, "Trabalhando", x)["details"]);
+        d.ShowStatus = true;
+
+        // Tudo desligado: só o estado, sem "state" nem tempo.
+        d.ShowModel = d.ShowTitle = d.ShowProject = d.ShowTokens = d.ShowElapsed = false;
+        a = info.ToActivity(d, "Trabalhando", x);
+        Assert.Null(a["state"]);
+        Assert.Null(a["timestamps"]);
+
+        // Título enorme: cortado em 128 (limite do Discord).
+        d.ShowTitle = true;
+        a = info.ToActivity(d, "Trabalhando", x with { Title = new string('t', 300) });
+        Assert.Equal(128, ((string?)a["details"])!.Length);
+        Assert.Equal(128, ((string?)a["assets"]!["large_text"])!.Length);
         Assert.Contains("\"activity\":null", DiscordIpc.SetActivity(42, null, "n2"));
+    }
+
+    [Fact]
+    public void Transcript_is_read_incrementally()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"transcript-{Guid.NewGuid():N}.jsonl");
+        try
+        {
+            File.WriteAllText(path,
+                """{"type":"user","message":{"content":"oi"}}""" + "\n" +
+                """{"type":"assistant","message":{"id":"m1","model":"claude-sonnet-4-5-20250929","usage":{"input_tokens":10,"cache_read_input_tokens":1000,"cache_creation_input_tokens":90,"output_tokens":5}}}""" + "\n" +
+                """{"type":"assistant","message":{"id":"m1","model":"claude-sonnet-4-5-20250929","usage":{"input_tokens":10,"cache_read_input_tokens":1000,"cache_creation_input_tokens":90,"output_tokens":7}}}""" + "\n" +
+                "lixo que não é json\n" +
+                """{"type":"custom-title","customTitle":"Primeiro título","sessionId":"s"}""" + "\n" +
+                """{"type":"assistant","message":{"model":"claude-opus-5-5","usage":{"input_to""");  // linha ainda sendo escrita
+            var t = new TranscriptStats(path);
+            t.Update();
+            Assert.Equal("claude-sonnet-4-5-20250929", t.Model);
+            Assert.Equal(1100L, t.ContextTokens);
+            Assert.Equal("Primeiro título", t.Title);
+
+            // A linha cortada termina de ser escrita e chegam outras: só o que é novo é lido.
+            File.AppendAllText(path,
+                """kens":20,"cache_read_input_tokens":200000}}}""" + "\n" +
+                """{"type":"summary","summary":"Título antigo"}""" + "\n");
+            t.Update();
+            Assert.Equal("claude-opus-5-5", t.Model);
+            Assert.Equal(200_020L, t.ContextTokens);
+            Assert.Equal("Título antigo", t.Title);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void Model_and_token_labels()
+    {
+        Assert.Equal("Opus 5.5", TranscriptStats.ModelLabel("claude-opus-5-5"));
+        Assert.Equal("Sonnet 4.5", TranscriptStats.ModelLabel("claude-sonnet-4-5-20250929"));
+        Assert.Equal("Fable 5.2", TranscriptStats.ModelLabel("claude-fable-5-2"));
+        Assert.Equal("Opus 4", TranscriptStats.ModelLabel("claude-opus-4-20250514"));
+        Assert.Equal("Sonnet 3.5", TranscriptStats.ModelLabel("claude-3-5-sonnet-20241022"));
+        Assert.Equal("gpt-x", TranscriptStats.ModelLabel("gpt-x"));
+        Assert.Equal("850 tokens", TranscriptStats.TokenLabel(850));
+        Assert.Equal("128 mil tokens", TranscriptStats.TokenLabel(128_400));
+        Assert.Equal("1,2 mi tokens", TranscriptStats.TokenLabel(1_234_567));
+    }
+
+    [Fact]
+    public void Hook_session_keeps_the_transcript_path()
+    {
+        var json = """{"session_id":"abc","cwd":"C:\\p\\proj","transcript_path":"C:\\Users\\x\\.claude\\projects\\p\\abc.jsonl"}""";
+        Assert.Equal(@"C:\Users\x\.claude\projects\p\abc.jsonl", SessionInfo.TranscriptFromHook(json));
+        Assert.Null(SessionInfo.TranscriptFromHook("""{"transcript_path":"C:\\x\\nada.txt"}"""));
+
+        Storage.UpdateState(s => s.Sessions.Clear());
+        var cfg = new AppConfig();
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, new SessionInfo(0, "proj", "abc", SessionInfo.TranscriptFromHook(json)));
+        Assert.Equal(@"C:\Users\x\.claude\projects\p\abc.jsonl", Storage.LoadState().Find("abc")!.Transcript);
+        Storage.UpdateState(s => s.Sessions.Clear());
     }
 
     [Fact]
@@ -573,7 +659,7 @@ public class DiscordTests
         Assert.Equal(DiscordConfig.DefaultImageBase + "done.gif", d.ImageUrl("done"));
         Assert.Equal(DiscordConfig.DefaultImageBase + "logo.gif", d.ImageUrl("logo"));
 
-        var a = new PresenceInfo(ClaudeEvents.Question, null, null).ToActivity(false, "Pergunta", d.ImageUrl);
+        var a = new PresenceInfo(ClaudeEvents.Question, null, null).ToActivity(d, "Pergunta");
         Assert.Equal("https://exemplo.com/q.gif", (string?)a["assets"]!["small_image"]);
         Assert.Equal(DiscordConfig.DefaultImageBase + "logo.gif", (string?)a["assets"]!["large_image"]);
     }
@@ -588,7 +674,7 @@ public class DiscordTests
         st.Session("a").Project = "proj-a";
         st.Session("b").WaitingFor = ClaudeEvents.Question;
         st.Session("b").Project = "proj-b";
-        Assert.Equal(new PresenceInfo(ClaudeEvents.Question, "proj-b", null), PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5)));
+        Assert.Equal(new PresenceInfo(ClaudeEvents.Question, "proj-b", null, "b"), PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5)));
 
         st.Session("b").WaitingFor = null;
         var working = PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5))!;
@@ -600,5 +686,12 @@ public class DiscordTests
         Assert.Equal(ClaudeEvents.Done, PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5))!.Event);
         st.LastSignalAt = DateTimeOffset.Now.AddMinutes(-10);
         Assert.Null(PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5)));
+
+        // Ocioso: com a opção ligada, mostra a sessão mais recente em vez de sumir.
+        st.Session("a").Transcript = @"C:\t\a.jsonl";
+        cfg.Discord.ShowWhenIdle = true;
+        var idle = PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5))!;
+        Assert.Equal((ClaudeEvents.Idle, "proj-a", "a"), (idle.Event, idle.Project, idle.SessionId));
+        Assert.Equal("Ocioso", PresenceInfo.Details(ClaudeEvents.Idle));
     }
 }

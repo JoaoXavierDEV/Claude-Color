@@ -14,7 +14,10 @@ if (-not $Exe) {
 $home_ = Join-Path ([IO.Path]::GetTempPath()) "claude-color-demo-$([guid]::NewGuid().ToString('N'))"
 $shots = Join-Path $home_ 'shots'
 New-Item -ItemType Directory -Force $home_ | Out-Null
-@{ signalsEnabled = $true; theme = 'light'; lamp = @{ enabled = $false } } | ConvertTo-Json | Set-Content "$home_\config.json" -Encoding utf8
+@{
+    signalsEnabled = $true; theme = 'light'; lamp = @{ enabled = $false }
+    discord = @{ enabled = $true; showModel = $true; showTitle = $true; showTokens = $true }
+} | ConvertTo-Json -Depth 3 | Set-Content "$home_\config.json" -Encoding utf8
 
 $env:CLAUDE_COLOR_HOME = $home_
 try {
@@ -28,6 +31,7 @@ $map = @{
     '2-signals-escuro.png' = 'sinais-escuro.png'
     '3-devices.png'        = 'dispositivos.png'
     '4-profiles.png'       = 'perfis.png'
+    '5-discord.png'        = 'discord.png'
 }
 foreach ($k in $map.Keys) { Copy-Item (Join-Path $shots $k) (Join-Path "$root\docs" $map[$k]) -Force }
 Remove-Item $home_ -Recurse -Force

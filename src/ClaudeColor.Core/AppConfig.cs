@@ -86,8 +86,23 @@ public sealed class QuietConfig
 public sealed class DiscordConfig
 {
     public bool Enabled { get; set; }
-    /// <summary>Mostra "em &lt;projeto&gt;": amigos e servidores veem o nome da pasta.</summary>
+    /// <summary>Nome da pasta em que o Claude Code está: amigos e servidores veem.</summary>
     public bool ShowProject { get; set; }
+    /// <summary>
+    /// Sem sessão trabalhando nem esperando você: em vez de sumir, mostra "Ocioso" com o modelo, o título etc. da
+    /// sessão mais recente.
+    /// </summary>
+    public bool ShowWhenIdle { get; set; }
+    /// <summary>Linha de estado: "Trabalhando", "Terminou", "Aguardando você: pergunta"...</summary>
+    public bool ShowStatus { get; set; } = true;
+    /// <summary>Modelo em uso (ex.: "Opus 5.5").</summary>
+    public bool ShowModel { get; set; } = true;
+    /// <summary>Título da conversa: pode revelar o assunto.</summary>
+    public bool ShowTitle { get; set; }
+    /// <summary>Tokens no contexto (os mesmos do /context).</summary>
+    public bool ShowTokens { get; set; }
+    /// <summary>Tempo desde que o Claude começou a trabalhar.</summary>
+    public bool ShowElapsed { get; set; } = true;
     /// <summary>Application ID do aplicativo "Claude Color" no Discord Developer Portal (público).</summary>
     public string ApplicationId { get; set; } = DefaultApplicationId;
     /// <summary>Minutos que "Terminou" fica no perfil antes de o status sumir.</summary>
@@ -228,6 +243,8 @@ public sealed class SessionState
     public string? WaitingFor { get; set; }
     public long? Window { get; set; }
     public string? Project { get; set; }
+    /// <summary>Transcript (JSONL) da sessão: de onde saem modelo, título e tokens para o Discord.</summary>
+    public string? Transcript { get; set; }
     public DateTimeOffset LastSeen { get; set; } = DateTimeOffset.Now;
 }
 
