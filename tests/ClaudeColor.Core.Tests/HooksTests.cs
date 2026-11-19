@@ -411,9 +411,12 @@ public class SignalPipeSessionTests
     [Fact]
     public void Session_roundtrips_with_spaces_and_old_format_still_parses()
     {
-        var line = SignalPipe.Format("question", 9, new SessionInfo(0x1A2B, "meu projeto\nlegal"));
+        var line = SignalPipe.Format("question", 9, new SessionInfo(0x1A2B, "meu projeto\nlegal", "abc-123"));
         Assert.True(SignalPipe.TryParse(line, out var e, out var g, out var s));
-        Assert.Equal(("question", 9L, 0x1A2BL, "meu projetolegal"), (e, g, s.Window, s.Project));
+        Assert.Equal(("question", 9L, 0x1A2BL, "meu projetolegal", "abc-123"), (e, g, s.Window, s.Project, s.Id));
+
+        Assert.True(SignalPipe.TryParse(SignalPipe.Format("done", 2, new SessionInfo(5, "p")), out _, out _, out var noId));
+        Assert.Equal((5L, "p", (string?)null), (noId.Window, noId.Project, noId.Id));
 
         Assert.True(SignalPipe.TryParse("done 3", out _, out _, out var old));
         Assert.Equal(SessionInfo.None, old);
@@ -439,5 +442,88 @@ public class SignalPipeSessionTests
         Assert.True(s.UsesNotify(ClaudeEvents.Question) && s.UsesFlash(ClaudeEvents.Permission));
         Assert.True(s.UsesNotify(ClaudeEvents.Done));
         Assert.False(s.UsesFlash(ClaudeEvents.Done) || s.UsesNotify(ClaudeEvents.Working) || s.UsesFlash(ClaudeEvents.Idle));
+    }
+}
+
+
+[Collection("Storage")]
+public class SessionStateTests
+{
+    private static AppConfig WaitCfg()
+    {
+        var cfg = new AppConfig();
+        cfg.Events[ClaudeEvents.Question] = new SignalConfig { Color = "#FFC000", WaitForUser = true };
+        cfg.Events[ClaudeEvents.Permission] = new SignalConfig { Color = "#FF4000", WaitForUser = true };
+        cfg.Events[ClaudeEvents.Working] = new SignalConfig { Color = "#0040FF", HoldWhileWorking = true };
+        return cfg;
+    }
+
+    private static void Reset() => Storage.UpdateState(s => s.Sessions.Clear());
+
+    [Fact]
+    public async Task Resuming_one_session_keeps_the_other_waiting()
+    {
+        Reset();
+        var cfg = WaitCfg();
+        var a = new SessionInfo(0, "proj-a", "sessao-a");
+        var b = new SessionInfo(0, "proj-b", "sessao-b");
+        SignalRunner.Begin(cfg, ClaudeEvents.Question, a);
+        SignalRunner.Begin(cfg, ClaudeEvents.Permission, b);
+        Assert.Equal(ClaudeEvents.Question, Storage.LoadState().WaitingFor); // pergunta é mais urgente
+
+        var gen = SignalRunner.Begin(cfg, ClaudeEvents.Resumed, a)!.Value;
+        var st = Storage.LoadState();
+        Assert.Null(st.Find("sessao-a")!.WaitingFor);
+        Assert.Equal(ClaudeEvents.Permission, st.Find("sessao-b")!.WaitingFor);
+
+        // A luz volta para a cor da sessão que ainda espera, em vez de soltar.
+        var lamp = new SessionLamp();
+        await SignalRunner.RunAsync(cfg, ClaudeEvents.Resumed, gen, [lamp], isCurrent: () => true);
+        Assert.Equal(["show #FF4000"], lamp.Calls);
+
+        // PostToolUse de uma sessão que não esperava nada: ignorado.
+        Assert.Null(SignalRunner.Begin(cfg, ClaudeEvents.Resumed, a));
+        Reset();
+    }
+
+    [Fact]
+    public void Done_in_one_session_keeps_the_other_working()
+    {
+        Reset();
+        var cfg = WaitCfg();
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, new SessionInfo(0, null, "x"));
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, new SessionInfo(0, null, "y"));
+        SignalRunner.Begin(cfg, ClaudeEvents.Done, new SessionInfo(0, null, "x"));
+        Assert.True(Storage.LoadState().IsWorking(cfg));
+        SignalRunner.Begin(cfg, ClaudeEvents.Done, new SessionInfo(0, null, "y"));
+        Assert.False(Storage.LoadState().IsWorking(cfg));
+        Reset();
+    }
+
+    [Fact]
+    public void Hooks_without_session_id_share_the_default_session_and_old_sessions_are_pruned()
+    {
+        Reset();
+        var cfg = WaitCfg();
+        SignalRunner.Begin(cfg, ClaudeEvents.Question);
+        Assert.Equal(ClaudeEvents.Question, Storage.LoadState().Find(null)!.WaitingFor);
+        Assert.NotNull(SignalRunner.Begin(cfg, ClaudeEvents.Resumed));
+
+        Storage.UpdateState(s => s.Session("velha").LastSeen = DateTimeOffset.Now.AddHours(-2));
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, new SessionInfo(0, null, "nova"));
+        Assert.Null(Storage.LoadState().Find("velha"));
+        Assert.Equal("abc", SessionInfo.IdFromHook("""{"session_id":"a b\nc"}"""));
+        Assert.Null(SessionInfo.IdFromHook("""{"cwd":"x"}"""));
+        Reset();
+    }
+
+    private sealed class SessionLamp : ILightTarget
+    {
+        public List<string> Calls { get; } = [];
+        public string Name => "lamp";
+        public bool IsLamp => true;
+        public Task ShowAsync(RgbColor color, int brightness, CancellationToken ct = default) { Calls.Add($"show {color.ToHex()}"); return Task.CompletedTask; }
+        public Task ReleaseAsync(CancellationToken ct = default) { Calls.Add("release"); return Task.CompletedTask; }
+        public void Dispose() { }
     }
 }

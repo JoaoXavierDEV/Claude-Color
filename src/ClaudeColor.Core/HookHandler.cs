@@ -34,13 +34,15 @@ public static class HookHandler
         try
         {
             var evt = EventMapper.Map(input);
+            MarkHookSeen();
             // PostToolUse dispara a cada ferramenta: só registra no log quando algo aguardava você.
             if (evt != ClaudeEvents.Resumed) Storage.Log($"hook: {Summarize(input)} → {evt ?? "(ignorado)"}");
             if (evt is null) return null;
 
             var cfg = Storage.LoadConfig();
-            // PostToolUse dispara a cada ferramenta: só procura a janela quando algo aguardava você.
-            var session = evt == ClaudeEvents.Resumed && Storage.LoadState().WaitingFor is null ? SessionInfo.None : FindSession(input);
+            // PostToolUse dispara a cada ferramenta: só segue (e procura a janela) se esta sessão aguardava você.
+            if (evt == ClaudeEvents.Resumed && Storage.LoadState().Find(SessionInfo.IdFromHook(input))?.WaitingFor is null) return null;
+            var session = FindSession(input);
             if (SignalRunner.Begin(cfg, evt, session) is not { } gen) return null;
 
             // Barra de tarefas: o próprio hook pisca o terminal (não depende do app nem de administrador).
@@ -72,6 +74,17 @@ public static class HookHandler
             Storage.Log($"hook falhou: {ex}");
             return null;
         }
+    }
+
+    /// <summary>Registra que um hook chegou (no máximo a cada 30 s, para não pesar no PostToolUse).</summary>
+    private static void MarkHookSeen()
+    {
+        try
+        {
+            if (Storage.LoadState().LastHookAt is { } at && DateTimeOffset.Now - at < TimeSpan.FromSeconds(30)) return;
+            Storage.UpdateState(s => s.LastHookAt = DateTimeOffset.Now);
+        }
+        catch { /* só diagnóstico */ }
     }
 
     public static async Task<string> ReadStdinAsync(TimeSpan timeout)

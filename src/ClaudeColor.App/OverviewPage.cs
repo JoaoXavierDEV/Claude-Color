@@ -58,10 +58,12 @@ internal sealed class OverviewPage : Page
             Ui.SetStatus(_hooksStatus, hooks == HooksStatus.Installed ? true : hooks == HooksStatus.Outdated ? null : false,
                 hooks switch
                 {
-                    HooksStatus.Installed => "Hooks do Claude Code instalados",
+                    HooksStatus.Installed => $"Hooks do Claude Code instalados ({HookHealth.LastHookText()})",
                     HooksStatus.Outdated => "Hooks apontam para outro executável",
                     _ => "Hooks do Claude Code não instalados",
                 });
+            if (HookHealth.RunAsAdminMark(Program.ExePath) is not null)
+                Ui.SetStatus(_hooksStatus, false, "Os hooks não conseguem abrir o app: veja Solução de problemas");
             _installHooks.Visible = hooks != HooksStatus.Installed;
             _installHooks.Text = hooks == HooksStatus.Outdated ? "Atualizar hooks" : "Instalar hooks";
 

@@ -36,7 +36,7 @@ internal sealed class SignalHost : IDisposable
         if (rt.PendingSignal(TimeSpan.FromSeconds(20)) is { } pending)
         {
             Storage.Log($"signal-host: executando '{pending.Event}' #{pending.Generation} pendente");
-            Dispatch(pending.Event, pending.Generation, session: new SessionInfo(rt.LastWindow ?? 0, rt.LastProject));
+            Dispatch(pending.Event, pending.Generation, session: new SessionInfo(rt.LastWindow ?? 0, rt.LastProject, rt.LastSessionId));
         }
     }
 

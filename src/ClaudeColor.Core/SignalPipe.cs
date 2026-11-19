@@ -19,21 +19,24 @@ public static class SignalPipe
     public const int MaxLine = 1024;
 
     public static string Format(string evt, long gen, SessionInfo? session = null) =>
-        session is null ? $"{evt} {gen}" : $"{evt} {gen} {session.Window} {SessionInfo.Clean(session.Project ?? "")}".TrimEnd();
+        session is null
+            ? $"{evt} {gen}"
+            : $"{evt} {gen} {session.Window} {SessionInfo.CleanId(session.Id) ?? "-"} {SessionInfo.Clean(session.Project ?? "")}".TrimEnd();
 
     public static bool TryParse(string? line, out string evt, out long gen) => TryParse(line, out evt, out gen, out _);
 
-    /// <summary>"evento geração [janela [projeto com espaços]]" (o formato 2.0 só tinha os dois primeiros).</summary>
+    /// <summary>"evento geração [janela sessão [projeto com espaços]]" (o formato 2.0 só tinha os dois primeiros).</summary>
     public static bool TryParse(string? line, out string evt, out long gen, out SessionInfo session)
     {
         evt = ""; gen = 0; session = SessionInfo.None;
         if (line is null || line.Length > MaxLine) return false;
-        var parts = line.Trim().Split(' ', 4);
+        var parts = line.Trim().Split(' ', 5);
         if (parts.Length < 2 || !(ClaudeEvents.All.Contains(parts[0]) || parts[0] == ClaudeEvents.Resumed) || !long.TryParse(parts[1], out gen)) return false;
         long window = 0;
         if (parts.Length >= 3 && !long.TryParse(parts[2], out window)) return false;
         evt = parts[0];
-        session = new SessionInfo(window, parts.Length == 4 && parts[3].Length > 0 ? parts[3] : null);
+        var id = parts.Length >= 4 && parts[3] != "-" ? SessionInfo.CleanId(parts[3]) : null;
+        session = new SessionInfo(window, parts.Length == 5 && parts[4].Length > 0 ? parts[4] : null, id);
         return true;
     }
 

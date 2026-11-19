@@ -123,10 +123,16 @@ internal sealed class TroubleshootingPage : Page
         var hooks = new HooksInstaller().GetStatus(Program.ExePath);
         list.Add(hooks switch
         {
-            HooksStatus.Installed => new Check("Hooks do Claude Code", true, "Instalados e apontando para este app. Sessões abertas antes da instalação precisam ser reiniciadas."),
+            HooksStatus.Installed => new Check("Hooks do Claude Code", true, $"Instalados e apontando para este app ({HookHealth.LastHookText()}). Sessões abertas antes da instalação precisam ser reiniciadas."),
             HooksStatus.Outdated => new Check("Hooks do Claude Code", false, "Apontam para outro executável (instalação antiga?).", ("Atualizar hooks", InstallHooks)),
             _ => new Check("Hooks do Claude Code", false, "Sem os hooks o Claude Code não avisa o Claude Color.", ("Instalar hooks", InstallHooks)),
         });
+
+        if (HookHealth.RunAsAdminMark(Program.ExePath) is { } mark)
+            list.Add(new Check("Hooks chegando ao app", false,
+                "O ClaudeColor.exe está marcado \"Executar como administrador\", então o Claude Code (sem administrador) não consegue abri-lo " +
+                "e nenhum sinal chega. " + HookHealth.FixRunAsAdmin(mark.AllUsers),
+                ("Abrir a pasta do app", () => TrayContext.OpenPath(AppContext.BaseDirectory))));
 
         list.Add(cfg.SignalsEnabled
             ? new Check("Sinais", true, "Ligados.")

@@ -66,6 +66,9 @@ internal sealed class TrayContext : ApplicationContext
         var profiles = new ToolStripMenuItem("Perfil");
         menu.Items.Add(profiles);
 
+        var darkItem = new ToolStripMenuItem("Tema escuro", null, (_, _) => SetTheme(Ui.Dark ? "light" : "dark"));
+        menu.Items.Add(darkItem);
+
         _signalsItem = new ToolStripMenuItem("Sinais do Claude Code") { CheckOnClick = true };
         _signalsItem.Click += (_, _) => ToggleSignals();
         menu.Items.Add(_signalsItem);
@@ -87,6 +90,7 @@ internal sealed class TrayContext : ApplicationContext
                 });
             }
             profiles.Text = $"Perfil: {cfg.ActiveProfile}";
+            darkItem.Checked = Ui.Dark;
         };
 
         _icon = new NotifyIcon { ContextMenuStrip = menu, Visible = true, Text = "Claude Color" };
@@ -105,7 +109,12 @@ internal sealed class TrayContext : ApplicationContext
 
         // Atualiza o ícone quando chega um sinal do Claude.
         _refresh = new System.Windows.Forms.Timer { Interval = 2000 };
-        _refresh.Tick += (_, _) => RefreshFromState();
+        _refresh.Tick += (_, _) =>
+        {
+            RefreshFromState();
+            if (++_ticks % 150 == 0) CheckHooks(); // a cada ~5 min
+        };
+        _invoker.BeginInvoke(CheckHooks);
         _refresh.Start();
 
         // Uma segunda execução do app pede para mostrar a janela.
@@ -120,6 +129,36 @@ internal sealed class TrayContext : ApplicationContext
     private static Color IdleColor() =>
         Storage.LoadConfig().Lamp.IsActive ? Ui.ColorOf(Storage.LoadState().Manual) : Ui.Accent;
 
+    /// <summary>
+    /// Troca o tema ("system", "light" ou "dark") na hora: grava, troca a paleta e recria a janela na mesma
+    /// página e posição. Roda depois do evento atual, porque quem pede costuma estar dentro da janela.
+    /// </summary>
+    public void SetTheme(string theme) => _invoker.BeginInvoke(() =>
+    {
+        var cfg = Storage.LoadConfig();
+        cfg.Theme = theme;
+        Storage.SaveConfig(cfg);
+        Ui.ApplyTheme(theme);
+        Storage.Log($"tema: {theme} ({(Ui.Dark ? "escuro" : "claro")})");
+
+        var old = _settings;
+        if (old is null || old.IsDisposed) return;
+        bool visible = old.Visible;
+        var page = old.CurrentPage;
+        var state = old.WindowState;
+        var bounds = state == FormWindowState.Normal ? old.Bounds : old.RestoreBounds;
+
+        _settings = new SettingsForm { StartPosition = FormStartPosition.Manual, Bounds = bounds, Icon = _currentIcon };
+        if (page is not null) _settings.Navigate(page);
+        if (visible)
+        {
+            _settings.Show();
+            _settings.WindowState = state == FormWindowState.Minimized ? FormWindowState.Normal : state;
+            _settings.Activate();
+        }
+        old.Dispose();
+    });
+
     public void ShowSettings()
     {
         if (_settings is null || _settings.IsDisposed)
@@ -130,6 +169,25 @@ internal sealed class TrayContext : ApplicationContext
         _settings.Show();
         if (_settings.WindowState == FormWindowState.Minimized) _settings.WindowState = FormWindowState.Normal;
         _settings.Activate();
+    }
+
+    private int _ticks;
+    private string? _lastHookProblems;
+
+    /// <summary>Avisa (uma vez por problema novo) quando os hooks não conseguem chegar ao app.</summary>
+    private void CheckHooks()
+    {
+        try
+        {
+            var problems = HookHealth.Check();
+            var key = string.Join("|", problems.Select(p => p.Title));
+            if (key == _lastHookProblems) return;
+            _lastHookProblems = key;
+            if (problems.Count == 0) return;
+            Storage.Log($"hooks: {key}");
+            _icon.ShowBalloonTip(8000, "Claude Color: os sinais não vão chegar", problems[0].Title + ". Veja Solução de problemas.", ToolTipIcon.Warning);
+        }
+        catch (Exception ex) { Storage.Log($"hooks: verificação falhou: {ex.Message}"); }
     }
 
     private void RefreshFromState()
@@ -147,7 +205,7 @@ internal sealed class TrayContext : ApplicationContext
         else
         {
             UpdateIcon(IdleColor());
-            _icon.Text = "Claude Color";
+            _icon.Text = string.IsNullOrEmpty(_lastHookProblems) ? "Claude Color" : "Claude Color: hooks não estão chegando";
         }
     }
 

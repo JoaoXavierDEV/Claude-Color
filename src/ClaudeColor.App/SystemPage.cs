@@ -40,15 +40,11 @@ internal sealed class SystemPage : Page
         foreach (var (_, label) in Themes) _theme.Items.Add(label);
         var themeLabel = Ui.Label("Tema da janela");
         themeLabel.Margin = new Padding(0, 10, 8, 4);
-        windows.Add(Ui.Row(themeLabel, _theme), windows.Wrap(Ui.Hint("O tema muda na próxima vez que o Claude Color abrir (saia pela bandeja e abra de novo).")));
+        windows.Add(Ui.Row(themeLabel, _theme), windows.Wrap(Ui.Hint("Também dá para alternar pelo interruptor no fim do menu lateral ou pela bandeja.")));
         _theme.SelectedIndexChanged += (_, _) =>
         {
             if (_loading || _theme.SelectedIndex < 0) return;
-            var cfg = Storage.LoadConfig();
-            cfg.Theme = Themes[_theme.SelectedIndex].Key;
-            Storage.SaveConfig(cfg);
-            _status.ForeColor = Ui.Ok;
-            _status.Text = "Tema salvo: vale na próxima abertura do app.";
+            TrayContext.Current?.SetTheme(Themes[_theme.SelectedIndex].Key);
         };
         _autostart.CheckedChanged += async (_, _) => { if (!_loading) await SetAutostartAsync(_autostart.Checked); };
         _launchFromHook.CheckedChanged += (_, _) =>
@@ -81,6 +77,21 @@ internal sealed class SystemPage : Page
                 cfg.Quiet.SkipLights = _quietLights.Checked;
                 Storage.SaveConfig(cfg);
             };
+
+        var uninstall = Add(new Card("Desinstalar",
+            "Remove os hooks do Claude Code (com backup do settings.json), a tarefa agendada, a inicialização com o Windows e o registro " +
+            "das notificações, devolve as luzes e fecha o app. O exe não se apaga sozinho: a pasta dele é aberta no fim para você apagar."));
+        var purge = Ui.Check("Apagar também configuração, perfis e log (" + Storage.Directory + ")");
+        uninstall.Add(purge, Ui.Button("Desinstalar o Claude Color", (_, _) =>
+        {
+            if (MessageBox.Show(FindForm(), "Desinstalar o Claude Color?" + (purge.Checked ? "\n\nA configuração e os perfis serão apagados." : ""),
+                    "Claude Color", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            // Um processo separado faz a remoção: ele pede para este app sair (devolvendo as luzes) e espera.
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Program.ExePath, purge.Checked ? "uninstall --purge" : "uninstall")
+            {
+                UseShellExecute = true,
+            });
+        }));
 
         var files = Add(new Card("Arquivos"));
         files.Add(

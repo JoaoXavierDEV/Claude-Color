@@ -191,6 +191,18 @@ public sealed class ManualState
     public int WhiteTemp { get; set; } = 50;
 }
 
+/// <summary>O que uma sessão do Claude Code está fazendo.</summary>
+public sealed class SessionState
+{
+    /// <summary>Começou a trabalhar (só com "manter enquanto trabalha"); null = não está trabalhando.</summary>
+    public DateTimeOffset? WorkingSince { get; set; }
+    /// <summary>Evento aguardando sua intervenção (pergunta, plano, permissão...); null = nenhum.</summary>
+    public string? WaitingFor { get; set; }
+    public long? Window { get; set; }
+    public string? Project { get; set; }
+    public DateTimeOffset LastSeen { get; set; } = DateTimeOffset.Now;
+}
+
 public sealed class RuntimeState
 {
     public ManualState Manual { get; set; } = new();
@@ -198,13 +210,69 @@ public sealed class RuntimeState
     public long SignalGeneration { get; set; }
     public string? LastSignal { get; set; }
     public DateTimeOffset? LastSignalAt { get; set; }
-    /// <summary>Quando o Claude começou a trabalhar (só com "manter enquanto trabalha"); null = não está trabalhando.</summary>
-    public DateTimeOffset? WorkingSince { get; set; }
-    /// <summary>Evento aguardando sua intervenção (pergunta, plano, permissão...); null = nenhum.</summary>
-    public string? WaitingFor { get; set; }
-    /// <summary>Janela do terminal e projeto do último sinal (para o sinal pendente e a notificação).</summary>
+    /// <summary>Janela do terminal, projeto e sessão do último sinal (para o sinal pendente e a notificação).</summary>
     public long? LastWindow { get; set; }
     public string? LastProject { get; set; }
+    public string? LastSessionId { get; set; }
+    /// <summary>Último hook recebido (qualquer um, inclusive ignorado): mostra se os hooks estão chegando.</summary>
+    public DateTimeOffset? LastHookAt { get; set; }
+
+    /// <summary>Estado de cada sessão do Claude Code (chave: session_id do hook).</summary>
+    public Dictionary<string, SessionState> Sessions { get; set; } = new(StringComparer.Ordinal);
+
+    public const string DefaultSession = "default";
+
+    /// <summary>Ordem de urgência quando mais de uma sessão espera você.</summary>
+    private static readonly string[] Urgency = [ClaudeEvents.Question, ClaudeEvents.Plan, ClaudeEvents.Permission, ClaudeEvents.Idle];
+
+    /// <summary>A sessão (criada se não existe), marcada como vista agora.</summary>
+    public SessionState Session(string? id)
+    {
+        id = string.IsNullOrWhiteSpace(id) ? DefaultSession : id;
+        if (!Sessions.TryGetValue(id, out var s)) Sessions[id] = s = new SessionState();
+        s.LastSeen = DateTimeOffset.Now;
+        return s;
+    }
+
+    public SessionState? Find(string? id) =>
+        Sessions.TryGetValue(string.IsNullOrWhiteSpace(id) ? DefaultSession : id, out var s) ? s : null;
+
+    /// <summary>Remove sessões sem atividade há mais que o limite de segurança.</summary>
+    public void Prune()
+    {
+        foreach (var (id, s) in Sessions.ToList())
+            if (DateTimeOffset.Now - s.LastSeen > SignalConfig.MaxWorkingHold) Sessions.Remove(id);
+    }
+
+    /// <summary>
+    /// Quando alguma sessão começou a trabalhar (null = nenhuma). Atribuir null encerra o "trabalhando" de todas;
+    /// atribuir um valor vale para a sessão padrão (hooks sem session_id).
+    /// </summary>
+    [JsonIgnore]
+    public DateTimeOffset? WorkingSince
+    {
+        get => Sessions.Values.Select(s => s.WorkingSince).Where(w => w is not null).Max();
+        set
+        {
+            if (value is null) foreach (var s in Sessions.Values) s.WorkingSince = null;
+            else Session(DefaultSession).WorkingSince = value;
+        }
+    }
+
+    /// <summary>
+    /// O evento mais urgente que alguma sessão espera de você (null = nenhum). Atribuir null limpa todas;
+    /// atribuir um valor vale para a sessão padrão.
+    /// </summary>
+    [JsonIgnore]
+    public string? WaitingFor
+    {
+        get => Urgency.FirstOrDefault(e => Sessions.Values.Any(s => s.WaitingFor == e));
+        set
+        {
+            if (value is null) foreach (var s in Sessions.Values) s.WaitingFor = null;
+            else Session(DefaultSession).WaitingFor = value;
+        }
+    }
 
     /// <summary>
     /// Sinal registrado por um hook pouco antes do app abrir (o hook abriu o app porque ele estava fechado).

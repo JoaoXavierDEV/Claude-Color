@@ -57,7 +57,7 @@ public static class SignalRunner
     /// <summary>Registra o sinal e devolve a geração dele (ou null se nada a fazer).</summary>
     public static long? Begin(AppConfig cfg, string evt, SessionInfo? session = null)
     {
-        if (evt == ClaudeEvents.Resumed) return BeginResume(cfg);
+        if (evt == ClaudeEvents.Resumed) return BeginResume(cfg, session?.Id);
         if (!cfg.SignalsEnabled) { Storage.Log($"sinal '{evt}' ignorado: sinais pausados"); return null; }
         if (!cfg.Events.TryGetValue(evt, out var sig) || !sig.Enabled) { Storage.Log($"sinal '{evt}' desativado"); return null; }
         bool skip = false;
@@ -66,6 +66,7 @@ public static class SignalRunner
             // O app desktop também gera uma notificação de permissão para AskUserQuestion/ExitPlanMode;
             // ela não deve apagar a cor mais específica de pergunta/plano.
             if (evt == ClaudeEvents.Permission && s.LastSignal is ClaudeEvents.Question or ClaudeEvents.Plan &&
+                s.LastSessionId == session?.Id &&
                 s.LastSignalAt is { } at && DateTimeOffset.Now - at < TimeSpan.FromSeconds(15))
             {
                 skip = true;
@@ -74,14 +75,23 @@ public static class SignalRunner
             s.SignalGeneration++;
             s.LastSignal = evt;
             s.LastSignalAt = DateTimeOffset.Now;
+            s.Prune();
+            s.LastSessionId = session?.Id;
             if (session is not null)
             {
                 s.LastWindow = session.Window == 0 ? null : session.Window;
                 s.LastProject = session.Project;
             }
-            if (evt == ClaudeEvents.Working) s.WorkingSince = sig.HoldWhileWorking ? DateTimeOffset.Now : null;
-            else if (evt is ClaudeEvents.Done or ClaudeEvents.Idle) s.WorkingSince = null;
-            s.WaitingFor = sig.WaitForUser && SignalConfig.SupportsWaitForUser(evt) ? evt : null;
+            // Cada sessão do Claude Code tem o próprio "trabalhando" e "aguardando você".
+            var me = s.Session(session?.Id);
+            if (session is not null)
+            {
+                me.Window = session.Window == 0 ? me.Window : session.Window;
+                me.Project = session.Project ?? me.Project;
+            }
+            if (evt == ClaudeEvents.Working) me.WorkingSince = sig.HoldWhileWorking ? DateTimeOffset.Now : null;
+            else if (evt is ClaudeEvents.Done or ClaudeEvents.Idle) me.WorkingSince = null;
+            me.WaitingFor = sig.WaitForUser && SignalConfig.SupportsWaitForUser(evt) ? evt : null;
         });
         if (skip) { Storage.Log($"sinal '{evt}' ignorado: logo após '{state.LastSignal}'"); return null; }
         return state.SignalGeneration;
@@ -91,15 +101,16 @@ public static class SignalRunner
     /// PostToolUse: só faz algo se um sinal estava aguardando sua intervenção (o hook dispara a cada
     /// ferramenta, então sem espera ele sai em silêncio).
     /// </summary>
-    private static long? BeginResume(AppConfig cfg)
+    private static long? BeginResume(AppConfig cfg, string? sessionId)
     {
         if (!cfg.SignalsEnabled) return null;
         string? waited = null;
         var state = Storage.UpdateState(s =>
         {
-            if (s.WaitingFor is null) return;
-            waited = s.WaitingFor;
-            s.WaitingFor = null;
+            if (s.Find(sessionId) is not { WaitingFor: { } w } me) return;
+            waited = w;
+            me.WaitingFor = null;
+            me.LastSeen = DateTimeOffset.Now;
             s.SignalGeneration++;
             s.LastSignal = ClaudeEvents.Resumed;
             s.LastSignalAt = DateTimeOffset.Now;
@@ -113,7 +124,15 @@ public static class SignalRunner
     private static async Task BackToNormalOrWorkingAsync(AppConfig cfg, IReadOnlyList<ILightTarget> targets,
         Func<Func<ILightTarget, Task>, Task> all, string evt, long generation, CancellationToken ct)
     {
-        if (Storage.LoadState().IsWorking(cfg))
+        // Outra sessão ainda espera você: volta para a cor dela em vez de soltar.
+        if (Storage.LoadState().WaitingFor is { } other && cfg.Events.TryGetValue(other, out var otherSig) && otherSig.Enabled)
+        {
+            var otherColor = RgbColor.Parse(otherSig.Color);
+            bool otherPc = otherSig.UsesPcRgb(other);
+            await all(t => t.IsLamp || otherPc ? t.ShowAsync(otherColor, otherSig.Brightness, ct) : t.ReleaseAsync(ct));
+            Storage.Log($"'{evt}' #{generation}: outra sessão ainda aguarda ('{other}')");
+        }
+        else if (Storage.LoadState().IsWorking(cfg))
         {
             var working = cfg.Events[ClaudeEvents.Working];
             var workingColor = RgbColor.Parse(working.Color);
@@ -195,30 +214,17 @@ public static class SignalRunner
         {
             await Task.Delay(SignalConfig.MaxWorkingHold, ct);
             if (!Current()) return;
-            Storage.UpdateState(s => { if (s.WaitingFor == evt) s.WaitingFor = null; });
+            Storage.UpdateState(s => { foreach (var x in s.Sessions.Values) if (x.WaitingFor == evt) x.WaitingFor = null; });
             await BackToNormalOrWorkingAsync(cfg, targets, All, evt, generation, ct);
             return;
         }
 
-        if (sig.RestoreAfterSeconds is > 0 and var backSecs && evt != ClaudeEvents.Done && Storage.LoadState().IsWorking(cfg))
-        {
-            // O Claude ainda está trabalhando: depois do sinal, volta para a cor de "trabalhando".
-            await Task.Delay(TimeSpan.FromSeconds(backSecs), ct);
-            if (!Current()) return;
-            var working = cfg.Events[ClaudeEvents.Working];
-            var workingColor = RgbColor.Parse(working.Color);
-            bool pc = working.UsesPcRgb(ClaudeEvents.Working);
-            await All(t => t.IsLamp || pc ? t.ShowAsync(workingColor, working.Brightness, ct) : t.ReleaseAsync(ct));
-            Storage.Log($"'{evt}' #{generation}: voltou para 'trabalhando'");
-            return;
-        }
-
+        // Depois do tempo de restaurar: outra sessão esperando você > alguma trabalhando > estado normal.
         if (sig.RestoreAfterSeconds is > 0 and var secs)
         {
             await Task.Delay(TimeSpan.FromSeconds(secs), ct);
             if (!Current()) return;
-            await All(t => t.ReleaseAsync(ct));
-            Storage.Log($"estado normal restaurado após '{evt}' #{generation}");
+            await BackToNormalOrWorkingAsync(cfg, targets, All, evt, generation, ct);
         }
     }
 

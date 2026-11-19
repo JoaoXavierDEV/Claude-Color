@@ -42,6 +42,11 @@ internal static class Program
                     return 0;
                 }
 
+                // Remove hooks, tarefa agendada, inicialização e notificações; --purge apaga também os dados.
+                case "uninstall":
+                    ApplicationConfiguration.Initialize();
+                    return Uninstaller.Run(purge: args.Contains("--purge"), quiet: args.Contains("--quiet"));
+
                 case "install-hooks":
                     new HooksInstaller().Install(ExePath);
                     return 0;
@@ -61,7 +66,7 @@ internal static class Program
                 case "--screenshots" when args.Length >= 2:
                     ApplicationConfiguration.Initialize();
                     Ui.ApplyTheme(Storage.LoadConfig().Theme);
-                    Screenshots.Save(args[1]);
+                    Screenshots.Save(args[1], bothThemes: args.Contains("--both-themes"));
                     return 0;
             }
         }

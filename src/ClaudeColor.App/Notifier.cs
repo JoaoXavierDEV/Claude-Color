@@ -38,6 +38,13 @@ internal static class Notifier
         catch (Exception ex) { Storage.Log($"notificação: registro falhou: {ex.Message}"); }
     }
 
+    /// <summary>Remove as notificações do app e o registro do AppUserModelID (desinstalação).</summary>
+    public static void Unregister()
+    {
+        try { ToastNotificationManager.History.Clear(AppId); } catch { /* nada mostrado ainda */ }
+        Registry.CurrentUser.DeleteSubKeyTree($@"Software\Classes\AppUserModelId\{AppId}", throwOnMissingSubKey: false);
+    }
+
     private static ToastNotifier Toasts()
     {
         lock (Lock)
@@ -81,7 +88,7 @@ internal static class Notifier
     /// <summary>Tag por sessão: uma notificação nova do mesmo projeto substitui a anterior.</summary>
     private static string Tag(SessionInfo s)
     {
-        var key = s.Project ?? (s.Window != 0 ? s.Window.ToString("X") : "claude");
+        var key = s.Id ?? s.Project ?? (s.Window != 0 ? s.Window.ToString("X") : "claude");
         return key.Length > 60 ? key[..60] : key; // o Windows limita a tag a 64 caracteres
     }
 

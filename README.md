@@ -14,7 +14,9 @@ Sem RGB nenhum também funciona: o Windows mostra uma **notificação** com o no
 
 Feito em **.NET 10 / Windows Forms**, para Windows. É um único executável, que fica na bandeja do sistema.
 
-![Página Sinais](docs/sinais.png)
+| Tema claro | Tema escuro |
+|---|---|
+| ![Página Sinais](docs/sinais.png) | ![Página Sinais no tema escuro](docs/sinais-escuro.png) |
 
 ## Sinais padrão
 
@@ -38,7 +40,19 @@ As duas opções também terminam com um limite de segurança de 30 min, caso o 
 ## Instalação
 
 Para usar: Windows 10 (2004) ou Windows 11 e o Claude Code. O app é um único `ClaudeColor.exe` com o .NET embutido, então não precisa instalar o .NET.
-Para compilar: [.NET 10 SDK](https://dotnet.microsoft.com/download).
+
+### Baixar
+
+1. Baixe o `ClaudeColor.exe` da [última versão](https://github.com/JoaoXavierDEV/claude-lamp/releases/latest) e coloque numa pasta sua, por exemplo `%USERPROFILE%\.claude-color\bin`.
+2. Abra. O exe não é assinado, então o Windows SmartScreen pode avisar: **Mais informações → Executar assim mesmo**.
+3. Opcional: confira o hash com o `SHA256SUMS.txt` do Release:
+   ```powershell
+   (Get-FileHash .\ClaudeColor.exe -Algorithm SHA256).Hash
+   ```
+
+### Compilar
+
+Precisa do [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```powershell
 git clone https://github.com/JoaoXavierDEV/claude-lamp.git claude-color
@@ -78,6 +92,8 @@ Um perfil é uma combinação de controladores: OpenRGB (e quais dispositivos de
 - Quando o OpenRGB sozinho não servir (um software do fabricante disputando um dispositivo, por exemplo), crie um perfil na página **Perfis** ou em **Dispositivos → Criar perfil a partir do Padrão** e combine o que funcionar no seu setup. As mudanças em **Dispositivos** ficam salvas no perfil ativo.
 - Troque de perfil pela página **Perfis** ou pelo menu da bandeja (**Perfil**). Os dispositivos do perfil anterior voltam ao modo que tinham.
 - As credenciais da lâmpada (Device ID, local key, IP) valem para todos os perfis. Os perfis ficam no `config.json`, junto com o resto da configuração.
+
+![Página Perfis](docs/perfis.png)
 
 ## OpenRGB
 
@@ -151,7 +167,9 @@ O controle local precisa do **Device ID** e da **local key**. A local key é obt
 
 - **Bandeja**: um duplo clique abre a janela; o clique direito pausa os sinais. Com a lâmpada ativa, o clique esquerdo liga/desliga e o menu mostra cores, branco e brilho. O ícone assume a cor do último sinal.
 - **Janela**: *Visão geral* (o que falta configurar e testes), *Sinais*, *Dispositivos*, *Perfis*, *Sistema* (hooks, administrador, inicialização com o Windows, notificações, log) e *Solução de problemas*.
-- **Tema**: claro ou escuro, seguindo o Windows por padrão (modo escuro do Windows Forms no .NET 10, mais a paleta própria do app). Dá para fixar em **Sistema → Tema da janela**; vale na próxima abertura do app.
+- **Tema**: claro ou escuro, seguindo o Windows por padrão (modo escuro do Windows Forms no .NET 10, mais a paleta própria do app). O interruptor no fim do menu lateral, o item **Tema escuro** da bandeja e **Sistema → Tema da janela** trocam na hora.
+- **Várias sessões do Claude Code**: cada sessão tem o próprio "trabalhando" e "aguardando você". Se você responde numa sessão e outra ainda espera, as luzes voltam para a cor da que espera; a notificação de cada sessão é separada.
+- **Hooks vigiados**: a Visão geral e a Solução de problemas mostram quando chegou o último hook. Se o exe estiver marcado "Executar como administrador" (o Claude Code roda sem administrador e não consegue abri-lo), a bandeja avisa e mostra como desmarcar.
 - Fechar a janela não encerra o app. Para sair, use **Sair** no menu da bandeja.
 - Se um sinal chegar com o app fechado, o hook abre o Claude Color na bandeja (pela Tarefa Agendada elevada, se existir) e o sinal é executado assim que ele inicia. Isso pode ser desligado em **Sistema**.
 
@@ -201,6 +219,8 @@ dotnet build
 dotnet test
 # exe único (o mesmo da instalação), numa pasta de teste:
 dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o .\publish
+# prints do README (docs\*.png) com uma config de demonstração, nos dois temas:
+.\tools\screenshots.ps1
 # PNG de cada página da janela, para revisar o layout:
 & src\ClaudeColor.App\bin\Debug\net10.0-windows\ClaudeColor.exe --screenshots .\shots
 ```
@@ -213,13 +233,18 @@ O projeto se chamava ClaudeLamp. Na primeira execução, o Claude Color copia `%
 2. Em **Sistema**, clique em **Instalar / atualizar hooks**. As entradas antigas do `ClaudeLamp.exe` são substituídas.
 3. Se usava *Iniciar com o Windows*, ative de novo. A tarefa antiga `ClaudeLamp` é removida.
 
+## Desinstalar
+
+Em **Sistema → Desinstalar** (ou `ClaudeColor.exe uninstall`, com `--purge` para apagar também configuração, perfis e log): o app devolve as luzes, remove os hooks do `~/.claude/settings.json` (com backup), a tarefa agendada, a inicialização com o Windows e o registro das notificações, e abre a pasta do exe para você apagá-la.
+
 ## Solução de problemas
 
 A página **Solução de problemas** do app verifica tudo isso automaticamente para o perfil ativo. Os sintomas mais comuns:
 
 | Sintoma | O que verificar |
 |---|---|
-| Nada acende | Veja em **Solução de problemas** se os hooks estão instalados e se o perfil ativo tem um controlador. Reinicie a sessão do Claude Code e consulte `log.txt`. |
+| Nada acende | Veja em **Solução de problemas** se os hooks estão instalados, quando chegou o último hook e se o perfil ativo tem um controlador. Reinicie a sessão do Claude Code e consulte `log.txt`. |
+| Nenhum hook chega (o log não mostra `hook:`) | O `ClaudeColor.exe` não pode estar marcado "Executar como administrador" (Propriedades → Compatibilidade): o Claude Code roda sem administrador e não consegue abri-lo. O app avisa na bandeja. |
 | OpenRGB não lista memória ou placa-mãe | Rode o OpenRGB (ou o Claude Color, que o inicia) como administrador, e confira se o iCUE não está segurando o acesso. |
 | Cores "brigando" ou voltando sozinhas | Outro software está controlando o mesmo dispositivo. Desmarque-o no OpenRGB ou desligue a iluminação no software do fabricante. |
 | Fans não voltam ao modo original | Confira se o MasterCTRL (ou outro software) não está reaplicando as cores, e se o log mostra `openrgb: ... restaurado para '...'`. |

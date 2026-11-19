@@ -31,6 +31,13 @@ internal sealed class SettingsForm : Form
         _nav = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Ui.Sidebar };
         _nav.Controls.Add(brand);
         var footer = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.TopDown, BackColor = Ui.Sidebar };
+        // Interruptor de tema: aplica na hora (a bandeja recria esta janela com a outra paleta).
+        var themeSwitch = Ui.Link(Ui.Dark ? "◐  Tema claro" : "◐  Tema escuro", () => TrayContext.Current?.SetTheme(Ui.Dark ? "light" : "dark"));
+        themeSwitch.LinkColor = themeSwitch.VisitedLinkColor = Ui.Muted;
+        themeSwitch.ActiveLinkColor = Ui.Text;
+        themeSwitch.LinkBehavior = LinkBehavior.HoverUnderline;
+        themeSwitch.Margin = new Padding(20, 0, 0, 8);
+        footer.Controls.Add(themeSwitch);
         footer.Controls.Add(_lastSignal);
         sidebar.Controls.Add(_nav);
         sidebar.Controls.Add(footer);
@@ -64,6 +71,9 @@ internal sealed class SettingsForm : Form
     }
 
     public IReadOnlyList<Page> Pages => _pages.Select(p => p.Page).ToList();
+
+    /// <summary>Página visível agora (para reabrir no mesmo lugar depois de trocar o tema).</summary>
+    public Type? CurrentPage => _pages.FirstOrDefault(p => p.Page.Visible).Page?.GetType();
 
     public void Navigate(Type pageType)
     {
