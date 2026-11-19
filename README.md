@@ -106,7 +106,7 @@ Modelo, título e tokens são lidos do transcript da sessão (o `transcript_path
 
 ![Página Discord](docs/discord.png)
 
-**Imagens próprias**: no `config.json`, `discord.images` troca a imagem de cada chave (`logo`, `question`, `plan`, `permission`, `done`, `working`, `idle`) por uma URL https. GIFs animam.
+**Imagens próprias**: no `config.json`, `discord.images` troca a imagem de cada chave (`logo`, `question`, `plan`, `permission`, `done`, `working`, `idle`) por uma URL https. GIFs animam. O app já grava as sete URLs padrão (os GIFs do repositório) no `config.json`: é só trocar o link e salvar, sem recompilar; o status no Discord pega a mudança na próxima atualização. Um link inválido (não https) volta ao GIF do repositório.
 
 ```json
 "discord": {

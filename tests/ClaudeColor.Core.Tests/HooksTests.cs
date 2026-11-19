@@ -665,6 +665,26 @@ public class DiscordTests
     }
 
     [Fact]
+    public void Image_urls_are_written_to_config_and_missing_keys_are_filled()
+    {
+        var fresh = new DiscordConfig();
+        Assert.True(fresh.EnsureImages()); // config sem a seção: grava
+        var json = System.Text.Json.JsonSerializer.Serialize(fresh);
+        Assert.Contains("logo.gif", json);
+        Assert.Contains("working.gif", json);
+
+        var d = new DiscordConfig { Images = new() { ["question"] = "https://exemplo.com/q.gif" } };
+        Assert.True(d.EnsureImages());
+        Assert.Equal("https://exemplo.com/q.gif", d.Images!["question"]); // a sua fica
+        Assert.Equal(DiscordConfig.ImageKeys.Length, d.Images.Count);
+        Assert.False(d.EnsureImages());
+
+        d.Images = null;
+        Assert.True(d.EnsureImages());
+        Assert.Equal(DiscordConfig.DefaultImageBase + "idle.gif", d.Images!["idle"]);
+    }
+
+    [Fact]
     public void Presence_prefers_waiting_over_working_over_recent_done()
     {
         var cfg = new AppConfig();

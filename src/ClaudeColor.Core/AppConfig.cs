@@ -112,11 +112,29 @@ public sealed class DiscordConfig
 
     /// <summary>
     /// Imagens por chave (logo, question, plan, permission, done, working, idle) → URL https. O Discord carrega e
-    /// anima GIFs direto da URL, sem upload no Developer Portal. Chave ausente = GIF do repositório.
+    /// anima GIFs direto da URL, sem upload no Developer Portal. <see cref="EnsureImages"/> (ao carregar) preenche com
+    /// os GIFs do repositório para que dê para trocar no config.json sem recompilar; chave ausente ou URL inválida
+    /// (não https) = GIF do repositório. Sem valor inicial: assim dá para saber se o arquivo ainda não tem a seção.
     /// </summary>
     public Dictionary<string, string>? Images { get; set; }
 
     public const string DefaultImageBase = "https://raw.githubusercontent.com/JoaoXavierDEV/claude-lamp/main/docs/discord/";
+
+    public static readonly string[] ImageKeys = ["logo", .. ClaudeEvents.All];
+
+    public static Dictionary<string, string> DefaultImages() =>
+        ImageKeys.ToDictionary(k => k, k => $"{DefaultImageBase}{k}.gif", StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Acrescenta ao <see cref="Images"/> as chaves que faltam (configs antigas). Retorna true se mudou algo.</summary>
+    public bool EnsureImages()
+    {
+        var images = new Dictionary<string, string>(Images ?? [], StringComparer.OrdinalIgnoreCase);
+        bool changed = Images is null;
+        foreach (var (k, v) in DefaultImages())
+            changed |= images.TryAdd(k, v);
+        Images = images;
+        return changed;
+    }
 
     public string ImageUrl(string key) =>
         Images is not null && Images.TryGetValue(key, out var url) && Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps
@@ -388,7 +406,8 @@ public static class Storage
         var cfg = Read<AppConfig>(ConfigPath) ?? new AppConfig();
         bool migrated = cfg.MigrateLegacy();
         // Sem config.json ainda (instalação nova), os perfis ficam só em memória até o primeiro Salvar.
-        if ((cfg.EnsureProfiles() | migrated) && File.Exists(ConfigPath)) SaveConfig(cfg);
+        // As URLs das imagens do Discord são gravadas para ficarem editáveis no config.json.
+        if ((cfg.EnsureProfiles() | migrated | cfg.Discord.EnsureImages()) && File.Exists(ConfigPath)) SaveConfig(cfg);
         // Garante que eventos novos apareçam mesmo em configs antigas.
         var events = new Dictionary<string, SignalConfig>(cfg.Events, StringComparer.OrdinalIgnoreCase);
         foreach (var (k, v) in AppConfig.DefaultEvents())
