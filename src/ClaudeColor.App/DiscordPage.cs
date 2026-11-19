@@ -16,6 +16,7 @@ internal sealed class DiscordPage : Page
     private readonly CheckBox _project = Ui.Check("Nome da pasta");
     private readonly CheckBox _elapsed = Ui.Check("Tempo de trabalho");
     private readonly CheckBox _orb = Ui.Check("Orb de status no canto da imagem (bolinha na cor do estado)");
+    private readonly CheckBox _github = Ui.Check("Botão \"View on GitHub\" com o link do Claude Color");
     private readonly TextBox _appId = new() { Width = 220 };
     private readonly Label _status = Ui.InlineStatus();
     private readonly Label _previewNote = Ui.Hint("");
@@ -39,7 +40,7 @@ internal sealed class DiscordPage : Page
     {
         var show = Add(new Card("O que mostrar",
             "Amigos e servidores veem o seu status. O título da conversa e o nome da pasta podem revelar o assunto ou o projeto: vêm desligados."));
-        show.Add(_enabled, _idle, _showStatus, _model, _title, _tokens, _project, _elapsed, _orb);
+        show.Add(_enabled, _idle, _showStatus, _model, _title, _tokens, _project, _elapsed, _orb, _github);
 
         var image = Add(new Card("Imagem",
             "A imagem grande do cartão. Escolha um GIF da galeria (os de docs/discord/gallery no GitHub) ou cole o link de uma imagem sua."));
@@ -72,7 +73,7 @@ internal sealed class DiscordPage : Page
             connection.Wrap(Ui.Hint("As imagens vêm por URL. As da orb de status (question, plan, permission, done, working, idle) " +
                                     "podem ser trocadas em \"discord.images\" no config.json.")));
 
-        foreach (var cb in new[] { _enabled, _idle, _showStatus, _model, _title, _tokens, _project, _elapsed, _orb }) cb.CheckedChanged += (_, _) => Save();
+        foreach (var cb in new[] { _enabled, _idle, _showStatus, _model, _title, _tokens, _project, _elapsed, _orb, _github }) cb.CheckedChanged += (_, _) => Save();
         _appId.Leave += (_, _) => Save();
         _timer.Tick += (_, _) => { if (Visible) RefreshPreview(); };
     }
@@ -90,6 +91,7 @@ internal sealed class DiscordPage : Page
         _project.Checked = d.ShowProject;
         _elapsed.Checked = d.ShowElapsed;
         _orb.Checked = d.ShowStatusOrb;
+        _github.Checked = d.ShowGitHubButton;
         _appId.Text = d.ApplicationId;
         _url.Text = d.ImageUrl("logo");
         _loading = false;
@@ -214,6 +216,7 @@ internal sealed class DiscordPage : Page
         d.ShowProject = _project.Checked;
         d.ShowElapsed = _elapsed.Checked;
         d.ShowStatusOrb = _orb.Checked;
+        d.ShowGitHubButton = _github.Checked;
         d.ApplicationId = new string(_appId.Text.Where(char.IsAsciiDigit).ToArray());
         Storage.SaveConfig(cfg);
         SignalHost.Current?.Discord.Refresh();
@@ -279,6 +282,7 @@ internal sealed class DiscordPage : Page
         {
             _activity = activity;
             _event = eventColor;
+            Height = Button(activity) is null ? 138 : 182;
             Invalidate();
         }
 
@@ -370,7 +374,20 @@ internal sealed class DiscordPage : Page
                 var elapsed = DateTimeOffset.Now - DateTimeOffset.FromUnixTimeSeconds((long)start);
                 Line($"{(int)elapsed.TotalMinutes:00}:{elapsed.Seconds:00} decorridos", body, Color.FromArgb(35, 165, 90));
             }
+
+            // Botão do cartão (o Discord desenha cinza, na largura toda, abaixo da imagem).
+            if (Button(_activity) is { } label)
+            {
+                var button = new Rectangle(16, large.Bottom + 12, Width - 32, 32);
+                using (var path = Rounded(button, 6))
+                using (var b = new SolidBrush(Color.FromArgb(78, 80, 88)))
+                    g.FillPath(b, path);
+                using var bf = new Font(Ui.FontFamily, 9F, FontStyle.Bold);
+                TextRenderer.DrawText(g, label, bf, button, Fg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            }
         }
+
+        private static string? Button(JsonObject? activity) => (string?)activity?["buttons"]?[0]?["label"];
 
         private static GraphicsPath Rounded(Rectangle r, int radius)
         {

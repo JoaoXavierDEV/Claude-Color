@@ -101,6 +101,7 @@ Na mesma página você escolhe o que aparece e vê uma **prévia** do cartão, i
 | Tokens no contexto (os mesmos do `/context`) | 128 mil tokens | desligado |
 | Nome da pasta | claude-lamp | desligado |
 | Tempo de trabalho | 12:34 decorridos | ligado |
+| Botão "View on GitHub" (link do repositório; quem vê o seu perfil pode clicar) | View on GitHub | ligado |
 
 Modelo, título e tokens são lidos do transcript da sessão (o `transcript_path` que o Claude Code passa aos hooks), só as linhas novas a cada atualização. Título e pasta vêm desligados porque amigos e servidores veem o status e eles podem revelar o assunto ou o projeto.
 
@@ -204,7 +205,7 @@ O controle local precisa do **Device ID** e da **local key**. A local key é obt
 
 ## Uso
 
-- **Bandeja**: um duplo clique abre a janela; o clique direito pausa os sinais. Com a lâmpada ativa, o clique esquerdo liga/desliga e o menu mostra cores, branco e brilho. O ícone assume a cor do último sinal.
+- **Bandeja**: um clique abre a janela (o mesmo vale para o balão de aviso); o clique direito abre o menu, que pausa os sinais e, com a lâmpada ativa, liga/desliga e mostra cores, branco e brilho. O ícone assume a cor do último sinal.
 - **Janela**: *Visão geral* (o que falta configurar e testes), *Sinais*, *Dispositivos*, *Perfis*, *Discord*, *Sistema* (hooks, administrador, inicialização com o Windows, notificações, log) e *Solução de problemas*.
 - **Tema**: claro ou escuro, seguindo o Windows por padrão (modo escuro do Windows Forms no .NET 10, mais a paleta própria do app). O interruptor no fim do menu lateral, o item **Tema escuro** da bandeja e **Sistema → Tema da janela** trocam na hora.
 - **Várias sessões do Claude Code**: cada sessão tem o próprio "trabalhando" e "aguardando você". Se você responde numa sessão e outra ainda espera, as luzes voltam para a cor da que espera; a notificação de cada sessão é separada.
