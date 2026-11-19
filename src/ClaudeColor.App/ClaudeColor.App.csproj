@@ -12,9 +12,6 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Version>2.3.0</Version>
     <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
-    <PackageIcon>logo.png</PackageIcon>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/JoaoXavierDEV/Claude-Color</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,22 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\README.md">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\ClaudeColor.Core\ClaudeColor.Core.csproj" />
     <ProjectReference Include="..\ClaudeColor.Rgb\ClaudeColor.Rgb.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Assets\logo.png">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
   </ItemGroup>
 
 </Project>
