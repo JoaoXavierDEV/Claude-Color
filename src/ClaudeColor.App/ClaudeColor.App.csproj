@@ -11,7 +11,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Version>2.3.0</Version>
+    <Product>Claude Color</Product>
+    <AssemblyTitle>Claude Color</AssemblyTitle>
+    <Company>João Fernando</Company>
+    <Authors>João Fernando</Authors>
+    <Copyright>© 2026 João Fernando</Copyright>
+    <Description>Sincroniza a cor das luzes com o Claude.</Description>
+    <NeutralLanguage>pt-BR</NeutralLanguage>
     <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
+    <PackageIcon>logo.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/JoaoXavierDEV/Claude-Color</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,8 +30,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ClaudeColor.Core\ClaudeColor.Core.csproj" />
     <ProjectReference Include="..\ClaudeColor.Rgb\ClaudeColor.Rgb.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Assets\logo.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>
