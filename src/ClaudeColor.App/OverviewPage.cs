@@ -117,6 +117,7 @@ internal sealed class OverviewPage : Page
         if (cfg.PcRgb.Corsair) list.Add(DeviceRouting.Corsair);
         if (cfg.PcRgb.Logitech) list.Add(DeviceRouting.Logitech);
         if (cfg.PcRgb.Msi) list.Add(DeviceRouting.Msi);
+        if (cfg.PcRgb.DynamicLighting) list.Add(DeviceRouting.DynamicLighting);
         return list;
     }
 

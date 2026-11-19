@@ -17,7 +17,16 @@ public static class HookHandler
         });
 
     /// <summary>Entrega o sinal ao app aberto. Substituível nos testes.</summary>
-    public static Func<string, long, bool> SendToHost { get; set; } = (evt, gen) => SignalPipe.TrySend(evt, gen);
+    public static Func<string, long, SessionInfo, bool> SendToHost { get; set; } = (evt, gen, s) => SignalPipe.TrySend(evt, gen, s);
+
+    /// <summary>Janela do terminal e projeto da sessão. Substituível nos testes.</summary>
+    public static Func<string, SessionInfo> FindSession { get; set; } = SessionInfo.FromHook;
+
+    /// <summary>Pisca o terminal na barra de tarefas. Substituível nos testes.</summary>
+    public static Func<long, bool> Flash { get; set; } = TaskbarFlash.Flash;
+
+    /// <summary>Estado "ocupado" do Windows. Substituível nos testes.</summary>
+    public static Func<UserBusy.State> BusyState { get; set; } = UserBusy.Current;
 
     /// <returns>O evento disparado, ou null se nada foi feito.</returns>
     public static string? Handle(string input, string exePath)
@@ -30,10 +39,20 @@ public static class HookHandler
             if (evt is null) return null;
 
             var cfg = Storage.LoadConfig();
-            if (SignalRunner.Begin(cfg, evt) is not { } gen) return null;
+            // PostToolUse dispara a cada ferramenta: só procura a janela quando algo aguardava você.
+            var session = evt == ClaudeEvents.Resumed && Storage.LoadState().WaitingFor is null ? SessionInfo.None : FindSession(input);
+            if (SignalRunner.Begin(cfg, evt, session) is not { } gen) return null;
+
+            // Barra de tarefas: o próprio hook pisca o terminal (não depende do app nem de administrador).
+            if (cfg.Events.TryGetValue(evt, out var sig) && sig.UsesFlash(evt) && session.Window != 0)
+            {
+                var busy = BusyState();
+                if (cfg.Quiet.SkipFlash && UserBusy.IsBusy(busy)) Storage.Log($"hook: barra não piscou ({UserBusy.Describe(busy)})");
+                else if (Flash(session.Window)) Storage.Log($"hook: piscando a janela {session.Window:X} na barra de tarefas");
+            }
 
             // App da bandeja aberto: ele executa o sinal em todos os dispositivos.
-            if (SendToHost(evt, gen)) { Storage.Log($"hook: '{evt}' #{gen} entregue ao app"); return evt; }
+            if (SendToHost(evt, gen, session)) { Storage.Log($"hook: '{evt}' #{gen} entregue ao app"); return evt; }
 
             if (cfg.LaunchFromHook)
             {

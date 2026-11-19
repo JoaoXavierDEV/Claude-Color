@@ -16,6 +16,7 @@ public sealed class DeviceProfile
     public bool Corsair { get; set; }
     public bool Logitech { get; set; }
     public bool Msi { get; set; }
+    public bool DynamicLighting { get; set; }
     public bool Lamp { get; set; }
 
     /// <summary>O perfil "Padrão": só o OpenRGB, com todos os dispositivos.</summary>
@@ -29,6 +30,7 @@ public sealed class DeviceProfile
         Corsair = cfg.PcRgb.Corsair,
         Logitech = cfg.PcRgb.Logitech,
         Msi = cfg.PcRgb.Msi,
+        DynamicLighting = cfg.PcRgb.DynamicLighting,
         Lamp = cfg.Lamp.Enabled,
     };
 
@@ -39,6 +41,7 @@ public sealed class DeviceProfile
         cfg.PcRgb.Corsair = Corsair;
         cfg.PcRgb.Logitech = Logitech;
         cfg.PcRgb.Msi = Msi;
+        cfg.PcRgb.DynamicLighting = DynamicLighting;
         cfg.Lamp.Enabled = Lamp;
     }
 
@@ -53,7 +56,7 @@ public sealed class DeviceProfile
     /// <summary>Igual ao Padrão (ignorando o nome)?</summary>
     [JsonIgnore]
     public bool IsDefaultSetup =>
-        OpenRgb && OpenRgbDevices is null && !Corsair && !Logitech && !Msi && !Lamp;
+        OpenRgb && OpenRgbDevices is null && !Corsair && !Logitech && !Msi && !DynamicLighting && !Lamp;
 
     /// <summary>Resumo legível: "OpenRGB (2 dispositivos), Corsair iCUE".</summary>
     public string Summary()
@@ -64,6 +67,7 @@ public sealed class DeviceProfile
         if (Corsair) list.Add(DeviceRouting.Corsair);
         if (Logitech) list.Add(DeviceRouting.Logitech);
         if (Msi) list.Add(DeviceRouting.Msi);
+        if (DynamicLighting) list.Add(DeviceRouting.DynamicLighting);
         if (Lamp) list.Add("lâmpada Wi-Fi");
         return list.Count == 0 ? "nada" : string.Join(", ", list);
     }

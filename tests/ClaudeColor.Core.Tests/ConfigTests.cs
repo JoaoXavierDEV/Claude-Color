@@ -121,6 +121,17 @@ public class DeviceRoutingTests
     }
 
     [Fact]
+    public void Slots_separate_identical_devices()
+    {
+        var slots = DeviceRouting.Slots([
+            ("Corsair Vengeance RGB DDR5", "I2C: 0x19"), ("Corsair Vengeance RGB DDR5", "I2C: 0x1B"),
+            ("CoolerMaster ARGB", ""), ("Igual", "x"), ("Igual", "x"),
+        ]);
+        Assert.Equal(["Corsair Vengeance RGB DDR5 @ I2C: 0x19", "Corsair Vengeance RGB DDR5 @ I2C: 0x1B",
+                      "CoolerMaster ARGB", "Igual @ x", "Igual @ x #2"], slots);
+    }
+
+    [Fact]
     public void Type_names_cover_protocol()
     {
         Assert.Equal("Memória RAM", DeviceRouting.TypeName(DeviceRouting.TypeDram));
@@ -187,6 +198,23 @@ public class ProfileTests
         cfg.SaveActiveProfile();
         Assert.False(cfg.PcRgb.Msi);   // ...é desfeito
         Assert.True(cfg.Active().IsDefaultSetup);
+    }
+
+    [Fact]
+    public void Dynamic_lighting_is_part_of_the_profile()
+    {
+        var cfg = new AppConfig();
+        cfg.EnsureProfiles();
+        var p = cfg.CreateProfile("Windows", Profiles.DefaultName);
+        p.OpenRgb = false;
+        p.DynamicLighting = true;
+        Assert.False(p.IsDefaultSetup);
+        Assert.Equal("Iluminação dinâmica", p.Summary());
+        cfg.ActivateProfile("Windows");
+        Assert.True(cfg.PcRgb.DynamicLighting);
+        Assert.False(cfg.PcRgb.OpenRgb.Enabled);
+        cfg.ActivateProfile(Profiles.DefaultName);
+        Assert.False(cfg.PcRgb.DynamicLighting);
     }
 
     [Fact]

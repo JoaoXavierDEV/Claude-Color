@@ -55,7 +55,7 @@ public static class EventMapper
 public static class SignalRunner
 {
     /// <summary>Registra o sinal e devolve a geração dele (ou null se nada a fazer).</summary>
-    public static long? Begin(AppConfig cfg, string evt)
+    public static long? Begin(AppConfig cfg, string evt, SessionInfo? session = null)
     {
         if (evt == ClaudeEvents.Resumed) return BeginResume(cfg);
         if (!cfg.SignalsEnabled) { Storage.Log($"sinal '{evt}' ignorado: sinais pausados"); return null; }
@@ -74,6 +74,11 @@ public static class SignalRunner
             s.SignalGeneration++;
             s.LastSignal = evt;
             s.LastSignalAt = DateTimeOffset.Now;
+            if (session is not null)
+            {
+                s.LastWindow = session.Window == 0 ? null : session.Window;
+                s.LastProject = session.Project;
+            }
             if (evt == ClaudeEvents.Working) s.WorkingSince = sig.HoldWhileWorking ? DateTimeOffset.Now : null;
             else if (evt is ClaudeEvents.Done or ClaudeEvents.Idle) s.WorkingSince = null;
             s.WaitingFor = sig.WaitForUser && SignalConfig.SupportsWaitForUser(evt) ? evt : null;

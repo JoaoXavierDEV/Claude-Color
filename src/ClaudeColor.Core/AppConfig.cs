@@ -37,6 +37,16 @@ public sealed class SignalConfig
 
     public static bool DefaultPcRgb(string evt) => evt is not (ClaudeEvents.Working or ClaudeEvents.Idle);
     public bool UsesPcRgb(string evt) => PcRgb ?? DefaultPcRgb(evt);
+
+    /// <summary>Notificação do Windows. Null = padrão do evento.</summary>
+    public bool? Notify { get; set; }
+    /// <summary>Pisca o botão do terminal na barra de tarefas. Null = padrão do evento.</summary>
+    public bool? FlashTaskbar { get; set; }
+
+    public static bool DefaultNotify(string evt) => evt is ClaudeEvents.Question or ClaudeEvents.Plan or ClaudeEvents.Permission or ClaudeEvents.Done;
+    public static bool DefaultFlash(string evt) => evt is ClaudeEvents.Question or ClaudeEvents.Plan or ClaudeEvents.Permission;
+    public bool UsesNotify(string evt) => Notify ?? DefaultNotify(evt);
+    public bool UsesFlash(string evt) => FlashTaskbar ?? DefaultFlash(evt);
 }
 
 /// <summary>Quais softwares de RGB do PC o Claude Color pode assumir durante um sinal.</summary>
@@ -48,6 +58,8 @@ public sealed class PcRgbConfig
     public bool Logitech { get; set; }
     /// <summary>MSI Mystic Light SDK (exige o app como administrador). A GPU também pode ir pelo OpenRGB.</summary>
     public bool Msi { get; set; }
+    /// <summary>Iluminação dinâmica do Windows 11 (LampArray). Experimental.</summary>
+    public bool DynamicLighting { get; set; }
     public OpenRgbConfig OpenRgb { get; set; } = new();
 }
 
@@ -60,6 +72,14 @@ public sealed class OpenRgbConfig
     public bool AutoStart { get; set; } = true;
     /// <summary>"Fabricante Nome" dos dispositivos controlados. Null = padrão (tudo que uma integração nativa ativa não cobre).</summary>
     public List<string>? Devices { get; set; }
+}
+
+/// <summary>O que segurar quando o Windows diz que você está ocupado (tela cheia, apresentação, horário silencioso).</summary>
+public sealed class QuietConfig
+{
+    public bool SkipNotify { get; set; } = true;
+    public bool SkipFlash { get; set; } = true;
+    public bool SkipLights { get; set; }
 }
 
 /// <summary>Lâmpada Wi-Fi Tuya (opcional).</summary>
@@ -89,9 +109,12 @@ public sealed class AppConfig
     public bool SignalsEnabled { get; set; } = true;
     /// <summary>Com o app fechado, o hook abre o app na bandeja para executar o sinal.</summary>
     public bool LaunchFromHook { get; set; } = true;
+    /// <summary>Tema da janela: "system" (segue o Windows), "light" ou "dark". Vale ao abrir o app.</summary>
+    public string Theme { get; set; } = "system";
     /// <summary>RGB do PC acompanhando os sinais.</summary>
     public PcRgbConfig PcRgb { get; set; } = new();
     public LampConfig Lamp { get; set; } = new();
+    public QuietConfig Quiet { get; set; } = new();
 
     /// <summary>Combinações de controladores. O "Padrão" (só OpenRGB) sempre existe. Veja <see cref="Profiles"/>.</summary>
     public List<DeviceProfile> Profiles { get; set; } = [];
@@ -179,6 +202,9 @@ public sealed class RuntimeState
     public DateTimeOffset? WorkingSince { get; set; }
     /// <summary>Evento aguardando sua intervenção (pergunta, plano, permissão...); null = nenhum.</summary>
     public string? WaitingFor { get; set; }
+    /// <summary>Janela do terminal e projeto do último sinal (para o sinal pendente e a notificação).</summary>
+    public long? LastWindow { get; set; }
+    public string? LastProject { get; set; }
 
     /// <summary>
     /// Sinal registrado por um hook pouco antes do app abrir (o hook abriu o app porque ele estava fechado).

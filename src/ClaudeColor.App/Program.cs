@@ -31,6 +31,17 @@ internal static class Program
                     catch (Exception ex) { Storage.Log($"run-signal falhou: {ex}"); }
                     return 0;
 
+                // Fecha o app aberto devolvendo as luzes (antes de atualizar o exe). Espera até 20 s.
+                case "--exit":
+                {
+                    if (!SignalPipe.TrySendLine(SignalPipe.QuitCommand, 1000)) return 0; // não estava aberto
+                    var until = DateTime.UtcNow.AddSeconds(20);
+                    while (DateTime.UtcNow < until &&
+                           System.Diagnostics.Process.GetProcessesByName("ClaudeColor").Any(p => p.Id != Environment.ProcessId))
+                        Thread.Sleep(250);
+                    return 0;
+                }
+
                 case "install-hooks":
                     new HooksInstaller().Install(ExePath);
                     return 0;
@@ -49,6 +60,7 @@ internal static class Program
                 // Gera um PNG de cada página da janela (documentação e revisão do layout).
                 case "--screenshots" when args.Length >= 2:
                     ApplicationConfiguration.Initialize();
+                    Ui.ApplyTheme(Storage.LoadConfig().Theme);
                     Screenshots.Save(args[1]);
                     return 0;
             }
@@ -90,6 +102,7 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
+        Ui.ApplyTheme(Storage.LoadConfig().Theme);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) => Storage.Log($"ui: {e.Exception}");
         Application.Run(new TrayContext(showSignal, openSettings: !args.Contains("--tray")));

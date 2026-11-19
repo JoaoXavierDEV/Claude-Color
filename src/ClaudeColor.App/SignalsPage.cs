@@ -21,7 +21,7 @@ internal sealed class SignalsPage : Page
 
     private sealed class RowControls
     {
-        public required CheckBox Enabled, PcRgb;
+        public required CheckBox Enabled, PcRgb, Notify, Flash;
         public CheckBox? Hold;
         public required ColorDot Color;
         public required NumericUpDown Brightness, Blink, Interval, Restore;
@@ -38,11 +38,11 @@ internal sealed class SignalsPage : Page
         var card = Add(new Card("Eventos"));
         card.Add(_signalsEnabled);
 
-        var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 10, Margin = new Padding(0, 6, 0, 4), BackColor = Ui.Surface };
+        var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 12, Margin = new Padding(0, 6, 0, 4), BackColor = Ui.Surface };
         (string Header, int Width)[] columns =
         [
-            ("Evento", 190), ("Ativo", 46), ("RGB do PC", 58), ("Cor", 48), ("Brilho %", 66),
-            ("Piscadas", 66), ("Intervalo (ms)", 76), ("Restaurar (s)", 76), ("Manter", 120), ("", 84),
+            ("Evento", 165), ("Ativo", 40), ("RGB do PC", 48), ("Notificar", 56), ("Piscar barra", 50), ("Cor", 40), ("Brilho %", 64),
+            ("Piscadas", 64), ("Intervalo (ms)", 66), ("Restaurar (s)", 66), ("Manter", 112), ("", 80),
         ];
         foreach (var (header, width) in columns)
         {
@@ -60,6 +60,8 @@ internal sealed class SignalsPage : Page
             {
                 Enabled = Cell(new CheckBox { AutoSize = true }),
                 PcRgb = Cell(new CheckBox { AutoSize = true }),
+                Notify = Cell(new CheckBox { AutoSize = true }),
+                Flash = Cell(new CheckBox { AutoSize = true }),
                 Color = Cell(new ColorDot()),
                 Brightness = Num(1, 100),
                 Blink = Num(0, 10),
@@ -69,7 +71,7 @@ internal sealed class SignalsPage : Page
             _rows[evt] = row;
 
             grid.Controls.Add(Cell(new Label { Text = DisplayName(evt), AutoSize = true, Font = Ui.Body, ForeColor = Ui.Text }));
-            grid.Controls.AddRange([row.Enabled, row.PcRgb, row.Color, row.Brightness, row.Blink, row.Interval, row.Restore]);
+            grid.Controls.AddRange([row.Enabled, row.PcRgb, row.Notify, row.Flash, row.Color, row.Brightness, row.Blink, row.Interval, row.Restore]);
             if (evt == ClaudeEvents.Working || SignalConfig.SupportsWaitForUser(evt))
             {
                 var text = evt == ClaudeEvents.Working ? "até terminar" : "até você agir";
@@ -93,6 +95,8 @@ internal sealed class SignalsPage : Page
         var help = Add(new Card("Como funciona"));
         help.Add(
             help.Wrap(Ui.Hint("RGB do PC: o evento também acende os dispositivos da página Dispositivos (OpenRGB e integrações nativas). A lâmpada Wi-Fi, se ativa, acende sempre.")),
+            help.Wrap(Ui.Hint("Notificar: mostra uma notificação do Windows com o nome do projeto; clicar nela traz o terminal da sessão para a frente. Some sozinha quando você age.")),
+            help.Wrap(Ui.Hint("Piscar barra: o botão do terminal (Windows Terminal, VS Code, console) daquela sessão pisca na barra de tarefas até você abrir a janela.")),
             help.Wrap(Ui.Hint("Manter → até terminar: a cor de \"Trabalhando\" fica do envio da sua mensagem até o Claude terminar; perguntas e permissões no meio voltam para ela.")),
             help.Wrap(Ui.Hint("Manter → até você agir: a cor fica até você responder, aprovar ou permitir, em vez de voltar depois de um tempo fixo.")),
             help.Wrap(Ui.Hint("Restaurar: segundos até as luzes voltarem ao normal (0 = ficam na cor do evento). Testar sempre volta em até 5 s.")));
@@ -122,6 +126,8 @@ internal sealed class SignalsPage : Page
             var s = events.TryGetValue(evt, out var v) ? v : new SignalConfig();
             row.Enabled.Checked = s.Enabled;
             row.PcRgb.Checked = s.UsesPcRgb(evt);
+            row.Notify.Checked = s.UsesNotify(evt);
+            row.Flash.Checked = s.UsesFlash(evt);
             if (row.Hold is not null) row.Hold.Checked = evt == ClaudeEvents.Working ? s.HoldWhileWorking : s.WaitForUser;
             row.Color.Value = Ui.ParseOr(s.Color, Color.White);
             row.Brightness.Value = Math.Clamp(s.Brightness, 1, 100);
@@ -142,6 +148,8 @@ internal sealed class SignalsPage : Page
             {
                 Enabled = row.Enabled.Checked,
                 PcRgb = row.PcRgb.Checked,
+                Notify = row.Notify.Checked,
+                FlashTaskbar = row.Flash.Checked,
                 HoldWhileWorking = evt == ClaudeEvents.Working && (row.Hold?.Checked ?? false),
                 WaitForUser = evt != ClaudeEvents.Working && (row.Hold?.Checked ?? false),
                 Color = row.Color.Hex,

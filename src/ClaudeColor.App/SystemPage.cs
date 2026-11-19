@@ -12,6 +12,12 @@ internal sealed class SystemPage : Page
     private readonly CheckBox _launchFromHook = Ui.Check("Abrir o Claude Color na bandeja quando o Claude Code mandar um sinal com o app fechado");
     private readonly Label _elevated = Ui.InlineStatus();
     private readonly Button _restartAdmin;
+    private readonly ComboBox _theme = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 170 };
+    private static readonly (string Key, string Label)[] Themes = [("system", "Seguir o Windows"), ("light", "Claro"), ("dark", "Escuro")];
+    private readonly CheckBox _quietNotify = Ui.Check("Não mostrar notificações");
+    private readonly CheckBox _quietFlash = Ui.Check("Não piscar o terminal na barra de tarefas");
+    private readonly CheckBox _quietLights = Ui.Check("Não acender as luzes");
+    private readonly Label _notifyStatus = Ui.InlineStatus(), _busyStatus = Ui.Label("");
     private bool _loading;
 
     public override string NavTitle => "Sistema";
@@ -31,6 +37,19 @@ internal sealed class SystemPage : Page
         windows.Add(Ui.Row(_elevated, _restartAdmin),
             windows.Wrap(Ui.Hint("Só é preciso para o MSI Mystic Light (e para o OpenRGB iniciado por aqui controlar memória e placa-mãe).")),
             _autostart, _launchFromHook);
+        foreach (var (_, label) in Themes) _theme.Items.Add(label);
+        var themeLabel = Ui.Label("Tema da janela");
+        themeLabel.Margin = new Padding(0, 10, 8, 4);
+        windows.Add(Ui.Row(themeLabel, _theme), windows.Wrap(Ui.Hint("O tema muda na próxima vez que o Claude Color abrir (saia pela bandeja e abra de novo).")));
+        _theme.SelectedIndexChanged += (_, _) =>
+        {
+            if (_loading || _theme.SelectedIndex < 0) return;
+            var cfg = Storage.LoadConfig();
+            cfg.Theme = Themes[_theme.SelectedIndex].Key;
+            Storage.SaveConfig(cfg);
+            _status.ForeColor = Ui.Ok;
+            _status.Text = "Tema salvo: vale na próxima abertura do app.";
+        };
         _autostart.CheckedChanged += async (_, _) => { if (!_loading) await SetAutostartAsync(_autostart.Checked); };
         _launchFromHook.CheckedChanged += (_, _) =>
         {
@@ -39,6 +58,29 @@ internal sealed class SystemPage : Page
             cfg.LaunchFromHook = _launchFromHook.Checked;
             Storage.SaveConfig(cfg);
         };
+
+        var notify = Add(new Card("Notificações e tela cheia",
+            "Notificações do Windows e a barra de tarefas acompanham os sinais (escolha por evento na página Sinais). " +
+            "Quando o Windows diz que você está ocupado (jogo ou vídeo em tela cheia, apresentação, horário silencioso):"));
+        notify.Add(_quietNotify, _quietFlash, _quietLights, _busyStatus,
+            Ui.Row(_notifyStatus,
+                Ui.Button("Enviar notificação de teste", (_, _) =>
+                {
+                    Notifier.Show("Pergunta para você", "Em teste. Clique para voltar ao terminal.", "#FFC000", SessionInfo.None);
+                    OnShown();
+                }),
+                Ui.Link("Configurações de notificação", "ms-settings:notifications")),
+            notify.Wrap(Ui.Hint("O modo \"Não incomodar\" do Windows guarda as notificações na central sozinho, sem tocar som.")));
+        foreach (var cb in new[] { _quietNotify, _quietFlash, _quietLights })
+            cb.CheckedChanged += (_, _) =>
+            {
+                if (_loading) return;
+                var cfg = Storage.LoadConfig();
+                cfg.Quiet.SkipNotify = _quietNotify.Checked;
+                cfg.Quiet.SkipFlash = _quietFlash.Checked;
+                cfg.Quiet.SkipLights = _quietLights.Checked;
+                Storage.SaveConfig(cfg);
+            };
 
         var files = Add(new Card("Arquivos"));
         files.Add(
@@ -67,7 +109,18 @@ internal sealed class SystemPage : Page
             Ui.SetStatus(_elevated, admin ? true : null, admin ? "Executando como administrador" : "Executando sem privilégios de administrador");
             _restartAdmin.Visible = !admin;
             _autostart.Checked = Elevation.AutostartTaskExists();
-            _launchFromHook.Checked = Storage.LoadConfig().LaunchFromHook;
+            var cfg = Storage.LoadConfig();
+            _launchFromHook.Checked = cfg.LaunchFromHook;
+            _theme.SelectedIndex = Math.Max(0, Array.FindIndex(Themes, t => t.Key == cfg.Theme));
+            _quietNotify.Checked = cfg.Quiet.SkipNotify;
+            _quietFlash.Checked = cfg.Quiet.SkipFlash;
+            _quietLights.Checked = cfg.Quiet.SkipLights;
+            var (ok, text) = Notifier.Status();
+            Ui.SetStatus(_notifyStatus, ok ? true : false, "Notificações: " + text);
+            var busy = UserBusy.Current();
+            _busyStatus.ForeColor = Ui.Muted;
+            _busyStatus.Font = Ui.Small;
+            _busyStatus.Text = UserBusy.IsBusy(busy) ? $"Agora: ocupado ({UserBusy.Describe(busy)})." : "Agora: disponível.";
         }
         catch (Exception ex) { _status.ForeColor = Ui.Error; _status.Text = ex.Message; }
         finally { _loading = false; }

@@ -6,9 +6,11 @@ Funciona com o que você já tem:
 
 - **[OpenRGB](https://openrgb.org)** (recomendado): placa-mãe, memória, placa de vídeo, fans, fitas ARGB, teclados, mouses e [centenas de outros dispositivos](https://openrgb.org/devices.html), de vários fabricantes, num só lugar.
 - **Lâmpada Wi-Fi** Tuya / Smart Life / Elgin Smart, pela rede local (sem nuvem).
-- **Integrações nativas** opcionais: Corsair iCUE, Logitech G HUB e MSI Mystic Light.
+- **Integrações nativas** opcionais: Corsair iCUE, Logitech G HUB, MSI Mystic Light e, em caráter experimental, a Iluminação dinâmica do Windows 11.
 
 Terminado o sinal, cada dispositivo volta ao modo e às cores que tinha antes.
+
+Sem RGB nenhum também funciona: o Windows mostra uma **notificação** com o nome do projeto, e o botão do terminal da sessão (Windows Terminal, VS Code, console) **pisca na barra de tarefas** até você voltar para ele.
 
 Feito em **.NET 10 / Windows Forms**, para Windows. É um único executável, que fica na bandeja do sistema.
 
@@ -35,13 +37,21 @@ As duas opções também terminam com um limite de segurança de 30 min, caso o 
 
 ## Instalação
 
-Requisitos: Windows, [.NET 10 SDK](https://dotnet.microsoft.com/download) e o Claude Code.
+Para usar: Windows 10 (2004) ou Windows 11 e o Claude Code. O app é um único `ClaudeColor.exe` com o .NET embutido, então não precisa instalar o .NET.
+Para compilar: [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```powershell
 git clone https://github.com/JoaoXavierDEV/claude-lamp.git claude-color
 cd claude-color
-dotnet publish src/ClaudeColor.App -c Release -o "$env:USERPROFILE\.claude-color\bin"
+dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o "$env:USERPROFILE\.claude-color\bin"
 & "$env:USERPROFILE\.claude-color\bin\ClaudeColor.exe"
+```
+
+Para atualizar sem deixar nenhuma luz presa na cor de um sinal, feche o app antes (ele devolve cada dispositivo ao modo original) e publique de novo:
+
+```powershell
+& "$env:USERPROFILE\.claude-color\bin\ClaudeColor.exe" --exit
+dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o "$env:USERPROFILE\.claude-color\bin"
 ```
 
 Na primeira execução, a janela abre na **Visão geral**, que mostra o que falta:
@@ -51,6 +61,14 @@ Na primeira execução, a janela abre na **Visão geral**, que mostra o que falt
 3. **Testar**: um botão por evento, que volta ao normal em até 5 s.
 
 Se algo não acender, a página **Solução de problemas** confere o que o perfil ativo precisa (Claude Code, hooks, OpenRGB e servidor SDK, DLLs dos SDKs, software do fabricante aberto, administrador, lâmpada na rede) e mostra o link para baixar o que falta.
+
+## Notificações e barra de tarefas
+
+Em **Sinais**, cada evento tem as colunas **Notificar** e **Piscar barra** (por padrão: pergunta, plano e permissão fazem as duas coisas; *terminou* só notifica).
+
+- A notificação diz o evento e o projeto (a pasta em que o Claude Code está). Clicar nela traz o terminal da sessão para a frente. Ela some sozinha quando você age, e uma nova do mesmo projeto substitui a anterior.
+- O hook descobre a janela subindo pelos processos que o iniciaram: o console (Windows Terminal ou o console clássico) ou a primeira janela visível de um processo pai (VS Code, JetBrains...).
+- Em **Sistema → Notificações e tela cheia**: quando o Windows indica jogo ou vídeo em tela cheia, apresentação ou horário silencioso, o app pode segurar as notificações, a barra de tarefas e, se você quiser, as luzes. O "Não incomodar" do Windows já guarda as notificações na central, sem som.
 
 ## Perfis
 
@@ -100,6 +118,12 @@ Ou seja: nesse PC, só o OpenRGB já cobriria todas as luzes. As integrações n
 2. No **iCUE**: Configurações → Geral → **Habilitar SDK**. No **G HUB**: permita que jogos e aplicativos controlem a iluminação.
 3. **MSI**: na página **Sistema**, use *Reiniciar como administrador* e *Iniciar com o Windows, como administrador* (Tarefa Agendada `ClaudeColor`, sem UAC a cada login). A GPU não pisca: cada chamada ao Mystic Light leva centenas de milissegundos, então ela recebe a cor final logo no início do sinal.
 
+### Iluminação dinâmica do Windows 11 (experimental)
+
+Teclados, mouses e luminárias com suporte a **Iluminação dinâmica** (Configurações → Personalização → Iluminação dinâmica) podem acender sem SDK de fabricante, pela API `Windows.Devices.Lights.LampArray`. Ative em **Dispositivos → Integrações nativas** num perfil próprio.
+
+Limitação: com o app em segundo plano, o Windows só entrega o controle das luzes a apps com identidade de pacote (MSIX) escolhidos naquela tela. O Claude Color não é empacotado, então o dispositivo só acende quando o Windows libera o controle. A página **Solução de problemas** mostra o que o Windows enxerga e se o controle está disponível.
+
 ## Opcional: lâmpada Wi-Fi
 
 Lâmpadas com firmware **Tuya**: Elgin Smart (por exemplo, a Smart Color A70 15 W RGB), as que funcionam no app Smart Life / Tuya Smart e muitas marcas "white label". Protocolo local **3.3, 3.4 e 3.5** (implementação própria; a 3.1 funciona via [TuyaNet](https://github.com/ClusterM/tuyanet)), com os formatos de DPs v2 (20–24) e v1 (1–5).
@@ -126,7 +150,8 @@ O controle local precisa do **Device ID** e da **local key**. A local key é obt
 ## Uso
 
 - **Bandeja**: um duplo clique abre a janela; o clique direito pausa os sinais. Com a lâmpada ativa, o clique esquerdo liga/desliga e o menu mostra cores, branco e brilho. O ícone assume a cor do último sinal.
-- **Janela**: *Visão geral* (o que falta configurar e testes), *Sinais*, *Dispositivos*, *Perfis*, *Sistema* (hooks, administrador, inicialização com o Windows, log) e *Solução de problemas*.
+- **Janela**: *Visão geral* (o que falta configurar e testes), *Sinais*, *Dispositivos*, *Perfis*, *Sistema* (hooks, administrador, inicialização com o Windows, notificações, log) e *Solução de problemas*.
+- **Tema**: claro ou escuro, seguindo o Windows por padrão (modo escuro do Windows Forms no .NET 10, mais a paleta própria do app). Dá para fixar em **Sistema → Tema da janela**; vale na próxima abertura do app.
 - Fechar a janela não encerra o app. Para sair, use **Sair** no menu da bandeja.
 - Se um sinal chegar com o app fechado, o hook abre o Claude Color na bandeja (pela Tarefa Agendada elevada, se existir) e o sinal é executado assim que ele inicia. Isso pode ser desligado em **Sistema**.
 
@@ -134,8 +159,10 @@ O controle local precisa do **Device ID** e da **local key**. A local key é obt
 
 ```
 Claude Code ──hook (JSON no stdin)──► ClaudeColor.exe hook ──► mapeia o evento (retorna em ~150 ms)
+                                            ├─► acha a janela do terminal e pisca na barra de tarefas
                                             │
                      app na bandeja aberto? ├─ sim ─► named pipe "ClaudeColor.Signals" ─► app da bandeja
+                                            │                                            ├─► notificação do Windows
                                             │                                            ├─► OpenRGB (SDK protocolo 6)
                                             │                                            ├─► lâmpada (TCP 6668)
                                             │                                            ├─► iCUE SDK
@@ -172,6 +199,8 @@ Para outro tipo de luz, implemente `ILightTarget` (`ShowAsync` e `ReleaseAsync`)
 ```powershell
 dotnet build
 dotnet test
+# exe único (o mesmo da instalação), numa pasta de teste:
+dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o .\publish
 # PNG de cada página da janela, para revisar o layout:
 & src\ClaudeColor.App\bin\Debug\net10.0-windows\ClaudeColor.exe --screenshots .\shots
 ```

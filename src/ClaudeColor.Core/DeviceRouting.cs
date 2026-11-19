@@ -12,7 +12,7 @@ public static class DeviceRouting
         TypeLight = 11, TypeSpeaker = 12, TypeVirtual = 13, TypeStorage = 14, TypeCase = 15, TypeMicrophone = 16,
         TypeAccessory = 17, TypeKeypad = 18;
 
-    public const string Corsair = "Corsair iCUE", Logitech = "Logitech G HUB", Msi = "MSI Mystic Light";
+    public const string Corsair = "Corsair iCUE", Logitech = "Logitech G HUB", Msi = "MSI Mystic Light", DynamicLighting = "Iluminação dinâmica";
 
     /// <summary>A integração nativa ativa que já cobre este dispositivo, ou null se ele é do OpenRGB.</summary>
     public static string? NativeOwner(int type, string vendor, string name, PcRgbConfig cfg)
@@ -29,6 +29,24 @@ public static class DeviceRouting
     /// <summary>Marcado por padrão (antes de você escolher na lista): tudo que nenhuma integração nativa ativa cobre.</summary>
     public static bool DefaultSelected(int type, string vendor, string name, PcRgbConfig cfg) =>
         NativeOwner(type, vendor, name, cfg) is null;
+
+    /// <summary>
+    /// Identificador único de cada dispositivo numa listagem, para salvar e restaurar o modo. O nome
+    /// ("Fabricante Nome") se repete com dois pentes de memória iguais; o local (barramento/endereço) os separa,
+    /// e um sufixo "#2", "#3"... cobre o que ainda empatar.
+    /// </summary>
+    public static IReadOnlyList<string> Slots(IEnumerable<(string Key, string Location)> devices)
+    {
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        var slots = new List<string>();
+        foreach (var (key, location) in devices)
+        {
+            var slot = string.IsNullOrWhiteSpace(location) ? key : $"{key} @ {location}";
+            int n = seen[slot] = seen.GetValueOrDefault(slot) + 1;
+            slots.Add(n == 1 ? slot : $"{slot} #{n}");
+        }
+        return slots;
+    }
 
     public static string TypeName(int type) => type switch
     {

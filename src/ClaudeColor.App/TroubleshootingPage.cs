@@ -132,6 +132,12 @@ internal sealed class TroubleshootingPage : Page
             ? new Check("Sinais", true, "Ligados.")
             : new Check("Sinais", null, "Pausados pela bandeja ou pela Visão geral.", ("Ir para a Visão geral", () => Go(typeof(OverviewPage)))));
 
+        var (notifyOk, notifyText) = Notifier.Status();
+        list.Add(notifyOk
+            ? new Check("Notificações do Windows", true, notifyText + ".")
+            : new Check("Notificações do Windows", null, notifyText + ". As luzes e a barra de tarefas continuam funcionando.",
+                ("Abrir configurações", () => Ui.OpenUrl("ms-settings:notifications"))));
+
         var active = cfg.Active();
         list.Add(OverviewPage.ActiveOutputs(cfg).Count > 0
             ? new Check($"Perfil \"{active.Name}\"", true, $"Usa: {active.Summary()}.", ("Trocar perfil", () => Go(typeof(ProfilesPage))))
@@ -196,6 +202,25 @@ internal sealed class TroubleshootingPage : Page
                     ? new Check(DeviceRouting.Msi, false, "SDK encontrado, mas o Mystic Light só funciona com o app como administrador.",
                         ("Reiniciar como administrador", RestartAdmin))
                     : new Check(DeviceRouting.Msi, true, $"{NativeSdk.MsiDll} encontrado e app como administrador."));
+
+        if (cfg.PcRgb.DynamicLighting)
+        {
+            IReadOnlyList<(string Name, int Lamps, bool Available)> lamps = [];
+            string? error = null;
+            try { lamps = DynamicLightingTarget.Detect(); }
+            catch (Exception ex) { error = ex.Message; }
+            (string, Action) open = ("Abrir Iluminação dinâmica", () => Ui.OpenUrl("ms-settings:personalization-lighting"));
+            list.Add(error is not null
+                ? new Check(DeviceRouting.DynamicLighting, false, $"Não foi possível consultar: {error}", open)
+                : lamps.Count == 0
+                    ? new Check(DeviceRouting.DynamicLighting, false,
+                        "O Windows não listou nenhum dispositivo compatível. Só aparecem teclados, mouses e luminárias com suporte a " +
+                        "Iluminação dinâmica (às vezes é preciso fechar o software do fabricante ou atualizar o firmware).", open)
+                    : new Check(DeviceRouting.DynamicLighting, lamps.Any(l => l.Available) ? true : null,
+                        string.Join("; ", lamps.Select(l => $"{l.Name} ({l.Lamps} LEDs{(l.Available ? "" : ", sem controle agora")})")) +
+                        (lamps.All(l => l.Available) ? "." : ". Com o app em segundo plano o Windows pode não entregar o controle (experimental)."),
+                        open));
+        }
 
         // Lâmpada
         if (cfg.Lamp.Enabled)

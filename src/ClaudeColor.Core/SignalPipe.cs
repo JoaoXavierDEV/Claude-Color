@@ -15,14 +15,25 @@ public static class SignalPipe
 {
     public const string Name = "ClaudeColor.Signals";
 
-    public static string Format(string evt, long gen) => $"{evt} {gen}";
+    /// <summary>Tamanho máximo de uma linha (o projeto é limitado por <see cref="SessionInfo.Clean"/>).</summary>
+    public const int MaxLine = 1024;
 
-    public static bool TryParse(string? line, out string evt, out long gen)
+    public static string Format(string evt, long gen, SessionInfo? session = null) =>
+        session is null ? $"{evt} {gen}" : $"{evt} {gen} {session.Window} {SessionInfo.Clean(session.Project ?? "")}".TrimEnd();
+
+    public static bool TryParse(string? line, out string evt, out long gen) => TryParse(line, out evt, out gen, out _);
+
+    /// <summary>"evento geração [janela [projeto com espaços]]" (o formato 2.0 só tinha os dois primeiros).</summary>
+    public static bool TryParse(string? line, out string evt, out long gen, out SessionInfo session)
     {
-        evt = ""; gen = 0;
-        var parts = line?.Trim().Split(' ');
-        if (parts is not { Length: 2 } || !(ClaudeEvents.All.Contains(parts[0]) || parts[0] == ClaudeEvents.Resumed) || !long.TryParse(parts[1], out gen)) return false;
+        evt = ""; gen = 0; session = SessionInfo.None;
+        if (line is null || line.Length > MaxLine) return false;
+        var parts = line.Trim().Split(' ', 4);
+        if (parts.Length < 2 || !(ClaudeEvents.All.Contains(parts[0]) || parts[0] == ClaudeEvents.Resumed) || !long.TryParse(parts[1], out gen)) return false;
+        long window = 0;
+        if (parts.Length >= 3 && !long.TryParse(parts[2], out window)) return false;
         evt = parts[0];
+        session = new SessionInfo(window, parts.Length == 4 && parts[3].Length > 0 ? parts[3] : null);
         return true;
     }
 
@@ -52,7 +63,13 @@ public static class SignalPipe
     }
 
     /// <summary>Entrega o sinal ao app aberto. Retorna false se ninguém atendeu (app fechado).</summary>
-    public static bool TrySend(string evt, long gen, int timeoutMs = 300, string name = Name)
+    /// <summary>Pede ao app aberto para sair devolvendo as luzes (usado antes de atualizar o exe).</summary>
+    public const string QuitCommand = "quit";
+
+    public static bool TrySend(string evt, long gen, SessionInfo? session = null, int timeoutMs = 300, string name = Name) =>
+        TrySendLine(Format(evt, gen, session), timeoutMs, name);
+
+    public static bool TrySendLine(string line, int timeoutMs = 300, string name = Name)
     {
         try
         {
@@ -60,7 +77,7 @@ public static class SignalPipe
             // o acesso é restringido pelo ACL do servidor.
             using var pipe = new NamedPipeClientStream(".", name, PipeDirection.InOut);
             pipe.Connect(timeoutMs);
-            var data = Encoding.UTF8.GetBytes(Format(evt, gen) + "\n");
+            var data = Encoding.UTF8.GetBytes(line + "\n");
             pipe.Write(data);
             pipe.Flush();
             var buf = new byte[8];

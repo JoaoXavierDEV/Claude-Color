@@ -18,7 +18,8 @@ public sealed class PcRgbController : IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<ILightTarget, Lane> _lanes = [];
 
-    public PcRgbController()
+    /// <param name="extra">Integrações que dependem do app (ex.: Iluminação dinâmica, que usa WinRT).</param>
+    public PcRgbController(IEnumerable<RgbIntegration>? extra = null)
     {
         var corsair = new CorsairTarget();
         var logitech = new LogitechTarget();
@@ -30,6 +31,7 @@ public sealed class PcRgbController : IDisposable
             new(corsair, c => c.Corsair, _ => corsair.Detect()),
             new(logitech, c => c.Logitech, _ => [logitech.Detect()]),
             new(msi, c => c.Msi, _ => msi.Detect()),
+            .. extra ?? [],
         ];
     }
 

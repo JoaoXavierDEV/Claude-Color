@@ -93,6 +93,14 @@ public class HooksInstallerTests : IDisposable
 [Collection("Storage")]
 public class HookHandlerTests
 {
+    public HookHandlerTests()
+    {
+        // Os testes não podem piscar o terminal de quem roda nem depender da janela real.
+        HookHandler.FindSession = json => new SessionInfo(0x1234, SessionInfo.ProjectFromHook(json));
+        HookHandler.Flash = _ => true;
+        HookHandler.BusyState = () => UserBusy.State.AcceptsNotifications;
+    }
+
     [Fact]
     public void Ignored_payload_starts_nothing()
     {
@@ -115,7 +123,7 @@ public class HookHandlerTests
         Storage.SaveConfig(new AppConfig()); // sem lâmpada: só o RGB do PC
         var started = new List<string>();
         HookHandler.StartProcess = (_, args) => started.Add(args);
-        HookHandler.SendToHost = (_, _) => false; // app fechado
+        HookHandler.SendToHost = (_, _, _) => false; // app fechado
         Assert.Equal(ClaudeEvents.Done, HookHandler.Handle("""{"hook_event_name":"Stop"}""", "x.exe"));
         Assert.Equal("--tray --from-hook", Assert.Single(started));
         Assert.Equal((ClaudeEvents.Done, Storage.LoadState().SignalGeneration), Storage.LoadState().PendingSignal(TimeSpan.FromSeconds(20)));
@@ -127,7 +135,7 @@ public class HookHandlerTests
         Storage.SaveConfig(new AppConfig { LaunchFromHook = false });
         var started = new List<string>();
         HookHandler.StartProcess = (_, args) => started.Add(args);
-        HookHandler.SendToHost = (_, _) => false;
+        HookHandler.SendToHost = (_, _, _) => false;
         Assert.Equal(ClaudeEvents.Done, HookHandler.Handle("""{"hook_event_name":"Stop"}""", "x.exe"));
         Assert.Empty(started);
     }
@@ -138,7 +146,7 @@ public class HookHandlerTests
         Storage.SaveConfig(WithLamp(launchFromHook: false));
         var started = new List<string>();
         HookHandler.StartProcess = (_, args) => started.Add(args);
-        HookHandler.SendToHost = (_, _) => false; // app fechado
+        HookHandler.SendToHost = (_, _, _) => false; // app fechado
         Assert.Equal(ClaudeEvents.Done, HookHandler.Handle("""{"hook_event_name":"Stop"}""", "x.exe"));
         var args = Assert.Single(started);
         Assert.StartsWith("run-signal done ", args);
@@ -151,7 +159,7 @@ public class HookHandlerTests
         var started = new List<string>();
         var sent = new List<(string, long)>();
         HookHandler.StartProcess = (_, args) => started.Add(args);
-        HookHandler.SendToHost = (e, g) => { sent.Add((e, g)); return true; };
+        HookHandler.SendToHost = (e, g, _) => { sent.Add((e, g)); return true; };
         Assert.Equal(ClaudeEvents.Question, HookHandler.Handle("""{"hook_event_name":"PreToolUse","tool_name":"AskUserQuestion"}""", "x.exe"));
         Assert.Empty(started);
         Assert.Equal(ClaudeEvents.Question, Assert.Single(sent).Item1);
@@ -395,5 +403,41 @@ public class MultiTargetSignalTests
     public void Scale_applies_brightness()
     {
         Assert.Equal("#804000", RgbColor.Parse("#FF8000").Scale(50).ToHex());
+    }
+}
+
+public class SignalPipeSessionTests
+{
+    [Fact]
+    public void Session_roundtrips_with_spaces_and_old_format_still_parses()
+    {
+        var line = SignalPipe.Format("question", 9, new SessionInfo(0x1A2B, "meu projeto\nlegal"));
+        Assert.True(SignalPipe.TryParse(line, out var e, out var g, out var s));
+        Assert.Equal(("question", 9L, 0x1A2BL, "meu projetolegal"), (e, g, s.Window, s.Project));
+
+        Assert.True(SignalPipe.TryParse("done 3", out _, out _, out var old));
+        Assert.Equal(SessionInfo.None, old);
+        Assert.True(SignalPipe.TryParse("done 3 0", out _, out _, out var noProject));
+        Assert.Null(noProject.Project);
+        Assert.False(SignalPipe.TryParse("done 3 janela", out _, out _, out _));
+        Assert.False(SignalPipe.TryParse("done 3 1 " + new string('x', 2000), out _, out _, out _));
+    }
+
+    [Fact]
+    public void Project_comes_from_cwd()
+    {
+        Assert.Equal("claude-lamp", SessionInfo.ProjectFromHook("""{"cwd":"C:\\Users\\x\\source\\claude-lamp\\"}"""));
+        Assert.Equal("C:\\", SessionInfo.ProjectFromHook("""{"cwd":"C:\\"}"""));
+        Assert.Null(SessionInfo.ProjectFromHook("""{"hook_event_name":"Stop"}"""));
+        Assert.Null(SessionInfo.ProjectFromHook("lixo"));
+    }
+
+    [Fact]
+    public void Defaults_notify_and_flash_only_when_you_are_needed()
+    {
+        var s = new SignalConfig();
+        Assert.True(s.UsesNotify(ClaudeEvents.Question) && s.UsesFlash(ClaudeEvents.Permission));
+        Assert.True(s.UsesNotify(ClaudeEvents.Done));
+        Assert.False(s.UsesFlash(ClaudeEvents.Done) || s.UsesNotify(ClaudeEvents.Working) || s.UsesFlash(ClaudeEvents.Idle));
     }
 }

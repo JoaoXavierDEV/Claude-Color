@@ -84,11 +84,9 @@ public sealed class OpenRgbTarget(Func<PcRgbConfig> pcConfig) : ILightTarget
 
     public IReadOnlyList<OrgbController> Devices() => Call(c => c.GetControllers());
 
-    private IEnumerable<OrgbController> Selected(IReadOnlyList<OrgbController> all)
-    {
-        var cfg = pcConfig();
-        return all.Where(d => IsSelected(d, cfg));
-    }
+    /// <summary>Cada dispositivo com seu identificador único (nomes repetidos, como dois pentes iguais, não colidem).</summary>
+    private static IEnumerable<(string Slot, OrgbController Device)> WithSlots(IReadOnlyList<OrgbController> all) =>
+        DeviceRouting.Slots(all.Select(d => (d.Key, d.Location))).Zip(all);
 
     public Task ShowAsync(RgbColor color, int brightness, CancellationToken ct = default)
     {
@@ -96,11 +94,13 @@ public sealed class OpenRgbTarget(Func<PcRgbConfig> pcConfig) : ILightTarget
         Call(client =>
         {
             _saved ??= [];
-            foreach (var d in Selected(client.GetControllers()))
+            var cfg = pcConfig();
+            foreach (var (slot, d) in WithSlots(client.GetControllers()))
             {
-                if (!_saved.ContainsKey(d.Key))
+                if (!IsSelected(d, cfg)) continue;
+                if (!_saved.ContainsKey(slot))
                 {
-                    _saved[d.Key] = new Saved(d.Key, d.ActiveMode, d.ActiveModeData, d.Colors);
+                    _saved[slot] = new Saved(d.Key, d.ActiveMode, d.ActiveModeData, d.Colors);
                     client.SetCustomMode(d.Id); // "Direct": permite pintar LED a LED
                 }
                 client.UpdateLeds(d.Id, Enumerable.Repeat((c.R, c.G, c.B), d.LedCount).ToList());
@@ -123,18 +123,18 @@ public sealed class OpenRgbTarget(Func<PcRgbConfig> pcConfig) : ILightTarget
         {
             Call(client =>
             {
-                var byKey = client.GetControllers().ToDictionary(d => d.Key);
-                foreach (var s in _saved.Values)
+                var bySlot = WithSlots(client.GetControllers()).ToDictionary(x => x.Slot, x => x.Device);
+                foreach (var (slot, s) in _saved)
                 {
-                    if (!byKey.TryGetValue(s.Key, out var d) || s.Mode is null) continue;
+                    if (!bySlot.TryGetValue(slot, out var d) || s.Mode is null) continue;
                     try
                     {
                         client.UpdateMode(d.Id, s.ModeIndex, s.Mode);
                         if (s.Mode.Name is "Direct" or "Custom" && s.LedColors.Length == d.LedCount)
                             client.UpdateLeds(d.Id, s.LedColors);
-                        Storage.Log($"openrgb: {s.Key} restaurado para '{s.Mode.Name}'");
+                        Storage.Log($"openrgb: {slot} restaurado para '{s.Mode.Name}'");
                     }
-                    catch (Exception ex) { Storage.Log($"openrgb: restaurar {s.Key}: {ex.Message}"); }
+                    catch (Exception ex) { Storage.Log($"openrgb: restaurar {slot}: {ex.Message}"); }
                 }
                 return true;
             });

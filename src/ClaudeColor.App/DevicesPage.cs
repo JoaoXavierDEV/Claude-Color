@@ -27,6 +27,7 @@ internal sealed class DevicesPage : Page
     private readonly CheckBox _corsair = Ui.Check("Corsair iCUE: memória RAM, placa-mãe e o que mais o iCUE expuser", bold: true);
     private readonly CheckBox _logitech = Ui.Check("Logitech G HUB: teclado, mouse e periféricos LIGHTSYNC", bold: true);
     private readonly CheckBox _msi = Ui.Check("MSI Mystic Light: placa de vídeo e placa-mãe MSI", bold: true);
+    private readonly CheckBox _dynamic = Ui.Check("Iluminação dinâmica do Windows 11 (experimental): teclados, mouses e luminárias compatíveis", bold: true);
     private readonly Label _corsairSdk = Ui.Label(""), _logitechSdk = Ui.Label(""), _msiSdk = Ui.Label("");
 
     private readonly TextBox _output = new()
@@ -90,6 +91,11 @@ internal sealed class DevicesPage : Page
         native.Add(_corsair, _corsairSdk, Indent(Ui.Hint("No iCUE: Configurações → Geral → \"Habilitar SDK\".")));
         native.Add(_logitech, _logitechSdk, Indent(Ui.Hint("No G HUB: permita que jogos e aplicativos controlem a iluminação.")));
         native.Add(_msi, _msiSdk, Indent(Ui.Hint("Exige o app como administrador (página Sistema). A GPU recebe a cor fixa: o Mystic Light é lento demais para piscar.")));
+        var dynamicHint = Indent(native.Wrap(Ui.Hint(
+            "Sem SDK de fabricante: usa os dispositivos listados em Configurações → Personalização → Iluminação dinâmica. " +
+            "Com o app em segundo plano, o Windows só entrega o controle a apps empacotados escolhidos ali, então hoje funciona " +
+            "de forma limitada. Não marque o mesmo dispositivo no OpenRGB.")));
+        native.Add(_dynamic, dynamicHint, Indent(Ui.Link("Abrir Iluminação dinâmica", "ms-settings:personalization-lighting")));
 
         // Diagnóstico
         var diag = Add(new Card("Testar", "Detectar lista o que cada integração ativa enxerga; Testar acende tudo em amarelo por 5 s."));
@@ -98,7 +104,7 @@ internal sealed class DevicesPage : Page
         ProfileService.Changed += () => { if (!IsDisposed && IsHandleCreated && Visible) BeginInvoke(OnShown); };
         diag.Add(Ui.Row(_test, _detect, _status), _output);
 
-        foreach (var cb in new[] { _corsair, _logitech, _msi, _openRgbAutoStart, _openRgbCard.Toggle!, _lampCard.Toggle! })
+        foreach (var cb in new[] { _corsair, _logitech, _msi, _dynamic, _openRgbAutoStart, _openRgbCard.Toggle!, _lampCard.Toggle! })
             cb.CheckedChanged += (_, _) => Save();
         _openRgbDevices.ItemCheck += (_, _) => BeginInvoke(Save); // ItemCheck dispara antes de mudar o estado
     }
@@ -119,6 +125,7 @@ internal sealed class DevicesPage : Page
         _corsair.Checked = cfg.PcRgb.Corsair;
         _logitech.Checked = cfg.PcRgb.Logitech;
         _msi.Checked = cfg.PcRgb.Msi;
+        _dynamic.Checked = cfg.PcRgb.DynamicLighting;
         _openRgbCard.Toggle!.Checked = cfg.PcRgb.OpenRgb.Enabled;
         _openRgbAutoStart.Checked = cfg.PcRgb.OpenRgb.AutoStart;
         // A lista acompanha o perfil ativo (pode ter mudado desde a última visita).
@@ -149,13 +156,13 @@ internal sealed class DevicesPage : Page
 
         // O Padrão é fixo: só o OpenRGB, com todos os dispositivos. A conexão da lâmpada continua editável.
         bool locked = cfg.ActiveIsDefault();
-        foreach (Control c in new Control[] { _corsair, _logitech, _msi, _openRgbCard.Toggle!, _lampCard.Toggle!, _openRgbDevices, _checkAll, _uncheckAll })
+        foreach (Control c in new Control[] { _corsair, _logitech, _msi, _dynamic, _openRgbCard.Toggle!, _lampCard.Toggle!, _openRgbDevices, _checkAll, _uncheckAll })
             c.Enabled = !locked;
         _newProfile.Visible = locked;
         Ui.SetStatus(_profileStatus, true, $"Perfil ativo: {cfg.ActiveProfile}  ·  {cfg.Active().Summary()}");
         _profileHint.Text = locked
             ? "O Padrão usa só o OpenRGB, com todos os dispositivos, e não pode ser alterado. Para combinar outros controladores " +
-              "(iCUE, G HUB, Mystic Light, lâmpada) ou escolher dispositivos, crie um perfil."
+              "(iCUE, G HUB, Mystic Light, Iluminação dinâmica, lâmpada) ou escolher dispositivos, crie um perfil."
             : "As mudanças desta página ficam salvas neste perfil. Credenciais da lâmpada valem para todos os perfis.";
 
         _lampBody.Visible = cfg.Lamp.Enabled || locked;
@@ -180,6 +187,7 @@ internal sealed class DevicesPage : Page
         cfg.PcRgb.Corsair = _corsair.Checked;
         cfg.PcRgb.Logitech = _logitech.Checked;
         cfg.PcRgb.Msi = _msi.Checked;
+        cfg.PcRgb.DynamicLighting = _dynamic.Checked;
         cfg.PcRgb.OpenRgb.Enabled = _openRgbCard.Toggle!.Checked;
         cfg.PcRgb.OpenRgb.AutoStart = _openRgbAutoStart.Checked;
         if (_openRgbDevices.Items.Count > 0)

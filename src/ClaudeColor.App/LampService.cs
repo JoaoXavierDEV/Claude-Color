@@ -46,14 +46,14 @@ internal static class LampService
         // No teste, restaura em até 5 s para não deixar tudo na cor do evento.
         if (cfg.Events[evt].RestoreAfterSeconds is null or 0 or > 5) cfg.Events[evt].RestoreAfterSeconds = 5;
         if (SignalRunner.Begin(cfg, evt) is not { } gen) return;
-        SignalHost.Current?.Dispatch(evt, gen, cfg);
+        SignalHost.Current?.Dispatch(evt, gen, cfg, new SessionInfo(0, "teste"));
     }
 
     /// <summary>Acende tudo do perfil ativo em amarelo por 5 s.</summary>
     public static void TestAllDevices()
     {
         var cfg = Storage.LoadConfig();
-        cfg.Events[ClaudeEvents.Question] = new SignalConfig { Color = "#FFC000", Brightness = 100, Blink = 2, RestoreAfterSeconds = 5, PcRgb = true };
+        cfg.Events[ClaudeEvents.Question] = new SignalConfig { Color = "#FFC000", Brightness = 100, Blink = 2, RestoreAfterSeconds = 5, PcRgb = true, Notify = false };
         TestSignal(cfg, ClaudeEvents.Question);
     }
 }

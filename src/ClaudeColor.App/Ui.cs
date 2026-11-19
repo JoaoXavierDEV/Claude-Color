@@ -6,17 +6,84 @@ namespace ClaudeColor.App;
 /// <summary>Cores, fontes e peças da interface montada em código.</summary>
 internal static class Ui
 {
-    // Paleta: tons quentes neutros com destaque coral.
-    public static readonly Color Background = Color.FromArgb(247, 246, 242);
-    public static readonly Color Sidebar = Color.FromArgb(238, 236, 228);
-    public static readonly Color Surface = Color.White;
-    public static readonly Color Border = Color.FromArgb(222, 219, 208);
-    public static readonly Color Text = Color.FromArgb(38, 37, 33);
-    public static readonly Color Muted = Color.FromArgb(110, 107, 98);
-    public static readonly Color Accent = Color.FromArgb(217, 119, 87);
-    public static readonly Color Error = Color.FromArgb(185, 50, 40);
-    public static readonly Color Warn = Color.FromArgb(196, 118, 10);
-    public static readonly Color Ok = Color.FromArgb(46, 125, 80);
+    // Paleta: tons quentes neutros com destaque coral. Definida uma vez, antes da primeira janela (ApplyTheme).
+    public static bool Dark { get; private set; }
+    public static Color Background { get; private set; }
+    public static Color Sidebar { get; private set; }
+    public static Color Surface { get; private set; }
+    public static Color Hover { get; private set; }
+    public static Color Border { get; private set; }
+    public static Color Text { get; private set; }
+    public static Color Muted { get; private set; }
+    public static Color Accent { get; private set; }
+    public static Color Error { get; private set; }
+    public static Color Warn { get; private set; }
+    public static Color Ok { get; private set; }
+
+    static Ui() => SetPalette(dark: false);
+
+    private static void SetPalette(bool dark)
+    {
+        Dark = dark;
+        if (dark)
+        {
+            Background = Color.FromArgb(31, 30, 28);
+            Sidebar = Color.FromArgb(38, 37, 34);
+            Surface = Color.FromArgb(45, 44, 41);
+            Hover = Color.FromArgb(52, 50, 46);
+            Border = Color.FromArgb(66, 64, 59);
+            Text = Color.FromArgb(236, 234, 226);
+            Muted = Color.FromArgb(163, 159, 149);
+            Accent = Color.FromArgb(224, 128, 96);
+            Error = Color.FromArgb(240, 113, 102);
+            Warn = Color.FromArgb(232, 172, 72);
+            Ok = Color.FromArgb(110, 200, 140);
+        }
+        else
+        {
+            Background = Color.FromArgb(247, 246, 242);
+            Sidebar = Color.FromArgb(238, 236, 228);
+            Surface = Color.White;
+            Hover = Color.FromArgb(230, 227, 217);
+            Border = Color.FromArgb(222, 219, 208);
+            Text = Color.FromArgb(38, 37, 33);
+            Muted = Color.FromArgb(110, 107, 98);
+            Accent = Color.FromArgb(217, 119, 87);
+            Error = Color.FromArgb(185, 50, 40);
+            Warn = Color.FromArgb(196, 118, 10);
+            Ok = Color.FromArgb(46, 125, 80);
+        }
+    }
+
+    /// <summary>
+    /// Aplica o tema ("system", "light" ou "dark") antes de criar qualquer janela: a paleta do app e o modo de cor
+    /// do Windows Forms (.NET 10), que cuida dos controles padrão (caixas de texto, listas, barras de rolagem).
+    /// </summary>
+    public static void ApplyTheme(string? theme)
+    {
+#pragma warning disable WFO5001 // modo escuro do WinForms: ainda marcado como experimental no .NET 10
+        var mode = theme?.ToLowerInvariant() switch
+        {
+            "dark" => SystemColorMode.Dark,
+            "light" => SystemColorMode.Classic,
+            _ => SystemColorMode.System,
+        };
+        try { Application.SetColorMode(mode); }
+        catch (Exception ex) { Storage.Log($"ui: tema: {ex.Message}"); }
+        SetPalette(Application.IsDarkModeEnabled);
+#pragma warning restore WFO5001
+    }
+
+    /// <summary>Barra de título escura (DWM) para combinar com o tema.</summary>
+    public static void StyleTitleBar(Form form)
+    {
+        int on = Dark ? 1 : 0;
+        try { DwmSetWindowAttribute(form.Handle, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, ref on, sizeof(int)); }
+        catch { /* Windows antigo: fica a barra padrão */ }
+    }
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     public const string FontFamily = "Segoe UI";
     public static readonly Font Body = new(FontFamily, 9F);

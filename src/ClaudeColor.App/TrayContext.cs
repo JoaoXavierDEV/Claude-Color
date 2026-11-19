@@ -100,6 +100,7 @@ internal sealed class TrayContext : ApplicationContext
         _icon.DoubleClick += (_, _) => ShowSettings();
         UpdateIcon(IdleColor());
 
+        _signalHost.QuitRequested += () => _invoker.BeginInvoke(ExitThread);
         LampService.ManualStateChanged += s => _invoker.BeginInvoke(() => UpdateIcon(Ui.ColorOf(s)));
 
         // Atualiza o ícone quando chega um sinal do Claude.

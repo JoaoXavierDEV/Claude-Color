@@ -20,6 +20,7 @@ internal sealed class SettingsForm : Form
         Text = "Claude Color";
         Font = Ui.Body;
         BackColor = Ui.Background;
+        ForeColor = Ui.Text;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1100, 640);
         Size = new Size(1180, 780);
@@ -102,6 +103,12 @@ internal sealed class SettingsForm : Form
             if (page is OverviewPage o && o.Visible) o.RefreshLastSignal();
     }
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Ui.StyleTitleBar(this);
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (e.CloseReason == CloseReason.UserClosing)
@@ -140,7 +147,7 @@ internal sealed class SettingsForm : Form
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            var bg = _selected ? Ui.Surface : _hover ? Color.FromArgb(230, 227, 217) : Ui.Sidebar;
+            var bg = _selected ? Ui.Surface : _hover ? Ui.Hover : Ui.Sidebar;
             e.Graphics.Clear(bg);
             if (_selected)
             {

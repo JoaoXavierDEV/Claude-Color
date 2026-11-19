@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Símbolos dentro de cada DLL/exe: sem .pdb solto na pasta publicada, e o log mantém arquivo e linha. -->
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+</Project>
