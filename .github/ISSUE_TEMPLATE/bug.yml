@@ -1,0 +1,39 @@
+name: Bug
+description: Algo não funciona como deveria
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu
+      description: E o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abrir Dispositivos
+        2. Clicar em Testar
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão do Claude Color
+      placeholder: ex.: 2.3.0
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Dispositivos e controladores
+      description: Placa-mãe, periféricos, OpenRGB/iCUE/G HUB/lâmpada etc. Não cole local key, IDs nem o config.json.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Mensagens de erro
+      description: O que aparece em "Solução de problemas", se houver.
+      render: text

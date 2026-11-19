@@ -6,3 +6,7 @@ obj/
 TestResults/
 
 publish/
+
+# Configuração pessoal (fica em %USERPROFILE%\.claude-color; nunca versionar)
+config.json
+*.local.json

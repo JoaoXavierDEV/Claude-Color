@@ -1,0 +1,21 @@
+name: Sugestão
+description: Ideia de recurso, dispositivo ou integração nova
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: O que você gostaria
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Por quê
+      description: Que problema isso resolve ou como você usaria.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribuição
+      options:
+        - label: Posso ajudar a implementar ou testar
