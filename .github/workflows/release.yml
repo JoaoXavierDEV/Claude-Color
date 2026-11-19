@@ -1,9 +1,17 @@
 name: Release
 
-# Publica o ClaudeColor.exe (arquivo único, .NET embutido) ao enviar uma tag "v*", ex.: git tag v2.1.0 && git push origin v2.1.0
+# Publica o ClaudeColor.exe (arquivo único, .NET embutido). Duas formas:
+# - pelo site: Actions → Release → Run workflow (usa o <Version> do ClaudeColor.App.csproj na main e cria a tag);
+# - pelo terminal: git tag v2.3.1 && git push origin v2.3.1
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão, ex.: 2.3.2 (vazio = a do ClaudeColor.App.csproj)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -13,16 +21,35 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - name: Version
+        id: version
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $csproj = ([xml](Get-Content src/ClaudeColor.App/ClaudeColor.App.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            if ('${{ github.ref }}' -ne 'refs/heads/main') { throw 'Publique a partir da main.' }
+            $version = if ($env:INPUT_VERSION) { $env:INPUT_VERSION.Trim().TrimStart('v') } else { $csproj }
+            if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Versão inválida: '$version' (use o formato 2.3.2)." }
+            if ($version -ne $csproj) { throw "A versão $version não bate com o <Version> $csproj do csproj. Atualize o csproj na main antes (por PR)." }
+            if (git tag --list "v$version") { throw "A tag v$version já existe: suba o <Version> do csproj antes." }
+          } else {
+            $version = '${{ github.ref_name }}'.TrimStart('v')
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
       - name: Test
         run: dotnet test -c Release
       - name: Publish
         shell: pwsh
         run: |
-          $version = '${{ github.ref_name }}'.TrimStart('v')
-          dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -p:Version=$version -o out
+          dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -p:Version=${{ steps.version.outputs.version }} -o out
           $hash = (Get-FileHash out/ClaudeColor.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           # Quebra de linha LF: "sha256sum -c SHA256SUMS.txt" também funciona fora do Windows.
           [IO.File]::WriteAllText("$PWD/out/SHA256SUMS.txt", "$hash  ClaudeColor.exe`n")
@@ -31,5 +58,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create '${{ github.ref_name }}' out/ClaudeColor.exe out/SHA256SUMS.txt `
-            --title "Claude Color ${{ github.ref_name }}" --generate-notes
+          # Pelo site a tag ainda não existe: --target a cria no commit publicado.
+          gh release create '${{ steps.version.outputs.tag }}' out/ClaudeColor.exe out/SHA256SUMS.txt `
+            --target '${{ github.sha }}' --title "Claude Color ${{ steps.version.outputs.tag }}" --generate-notes

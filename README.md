@@ -270,6 +270,13 @@ dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o .\publish
 & src\ClaudeColor.App\bin\Debug\net10.0-windows10.0.26100.0\ClaudeColor.exe --discord-assets .\docs\discord
 ```
 
+### Publicar uma versão
+
+1. Suba o `<Version>` em `src/ClaudeColor.App/ClaudeColor.App.csproj` (ex.: `2.3.2`) num PR e faça o merge na `main`.
+2. No GitHub, abra **Actions → Release → Run workflow**, deixe a branch `main` e clique em **Run workflow**. O campo de versão pode ficar vazio: vale a do csproj.
+
+O workflow roda os testes, gera o `ClaudeColor.exe` e o `SHA256SUMS.txt`, cria a tag `v2.3.2` e a Release com as notas dos PRs. Ele recusa se a versão já tiver sido publicada ou não bater com o csproj. Pelo terminal também funciona: `git tag v2.3.2` e `git push origin v2.3.2`.
+
 ## Vindo do ClaudeLamp (1.x)
 
 O projeto se chamava ClaudeLamp. Na primeira execução, o Claude Color copia `%APPDATA%\ClaudeLamp\config.json` e `state.json` e move os campos da lâmpada para a seção `lamp` (suas escolhas de iCUE, G HUB, MSI e OpenRGB continuam iguais). Depois:
