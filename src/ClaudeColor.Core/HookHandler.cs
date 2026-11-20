@@ -39,6 +39,14 @@ public static class HookHandler
             if (evt != ClaudeEvents.Resumed) Storage.Log($"hook: {Summarize(input)} → {evt ?? "(ignorado)"}");
             if (evt is null) return null;
 
+            if (ClaudeEvents.IsSession(evt))
+            {
+                var opened = FindSession(input);
+                SignalRunner.TrackSession(evt, opened, SourceFromHook(input));
+                SendToHost(evt, 0, opened); // app fechado: o Discord atualiza quando ele abrir
+                return evt;
+            }
+
             var cfg = Storage.LoadConfig();
             // PostToolUse dispara a cada ferramenta: só segue (e procura a janela) se esta sessão aguardava você.
             if (evt == ClaudeEvents.Resumed && Storage.LoadState().Find(SessionInfo.IdFromHook(input))?.WaitingFor is null) return null;
@@ -74,6 +82,12 @@ public static class HookHandler
             Storage.Log($"hook falhou: {ex}");
             return null;
         }
+    }
+
+    private static string? SourceFromHook(string input)
+    {
+        try { return (string?)JsonNode.Parse(input)?["source"]; }
+        catch { return null; }
     }
 
     /// <summary>Registra que um hook chegou (no máximo a cada 30 s, para não pesar no PostToolUse).</summary>

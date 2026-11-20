@@ -68,7 +68,8 @@ internal sealed class SignalHost : IDisposable
                 {
                     await server.WriteAsync("ok\n"u8.ToArray(), _stop.Token);
                     await server.FlushAsync(_stop.Token);
-                    Dispatch(evt, gen, session: session);
+                    if (ClaudeEvents.IsSession(evt)) Discord.Refresh(); // conversa aberta/fechada: sem luz
+                    else Dispatch(evt, gen, session: session);
                 }
             }
             catch (OperationCanceledException) when (_stop.IsCancellationRequested) { break; }

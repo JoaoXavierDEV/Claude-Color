@@ -256,6 +256,11 @@ public static class ClaudeEvents
     public const string Done = "done";
     /// <summary>Interno: o Claude retomou depois de uma intervenção sua (hook PostToolUse).</summary>
     public const string Resumed = "resumed";
+    /// <summary>Interno: uma conversa abriu (nova, /clear ou retomada) ou fechou. Não acende luz: só atualiza o Discord.</summary>
+    public const string SessionStart = "session-start";
+    public const string SessionEnd = "session-end";
+
+    public static bool IsSession(string evt) => evt is SessionStart or SessionEnd;
 
     public static readonly string[] All = [Working, Question, Plan, Permission, Idle, Done];
 }
@@ -277,6 +282,13 @@ public sealed class SessionState
 {
     /// <summary>Começou a trabalhar (só com "manter enquanto trabalha"); null = não está trabalhando.</summary>
     public DateTimeOffset? WorkingSince { get; set; }
+    /// <summary>
+    /// Início da tarefa atual (a sua mensagem). Ao contrário de <see cref="WorkingSince"/>, segue enquanto o Claude
+    /// pergunta, pede permissão ou mostra um plano; zera em "terminou" e "ocioso". É o tempo de trabalho do Discord.
+    /// </summary>
+    public DateTimeOffset? TaskSince { get; set; }
+    /// <summary>Quando a última tarefa desta sessão terminou (o "Terminou" do Discord fica alguns minutos).</summary>
+    public DateTimeOffset? DoneAt { get; set; }
     /// <summary>Evento aguardando sua intervenção (pergunta, plano, permissão...); null = nenhum.</summary>
     public string? WaitingFor { get; set; }
     public long? Window { get; set; }
@@ -304,6 +316,14 @@ public sealed class RuntimeState
     public Dictionary<string, SessionState> Sessions { get; set; } = new(StringComparer.Ordinal);
 
     public const string DefaultSession = "default";
+
+    /// <summary>
+    /// A conversa que você abriu ou usou por último (SessionStart, sua mensagem, sua resposta). O Discord mostra o
+    /// estado dela; as luzes seguem a regra de urgência entre todas as sessões.
+    /// </summary>
+    public string? FocusedSession { get; set; }
+
+    public static string Key(string? id) => string.IsNullOrWhiteSpace(id) ? DefaultSession : id;
 
     /// <summary>Ordem de urgência quando mais de uma sessão espera você.</summary>
     private static readonly string[] Urgency = [ClaudeEvents.Question, ClaudeEvents.Plan, ClaudeEvents.Permission, ClaudeEvents.Idle];

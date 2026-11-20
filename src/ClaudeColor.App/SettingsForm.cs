@@ -28,7 +28,11 @@ internal sealed class SettingsForm : Form
         Size = new Size(1180, 780);
 
         var sidebar = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = Ui.Sidebar };
-        var brand = Ui.Row(_logo, new Label { Text = "Claude Color", AutoSize = true, Font = Ui.Brand, ForeColor = Ui.Text, Margin = new Padding(0, 6, 0, 0) });
+        var name = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Ui.Sidebar, Margin = Padding.Empty };
+        name.Controls.Add(new Label { Text = "Claude Color", AutoSize = true, Font = Ui.Brand, ForeColor = Ui.Text, Margin = Padding.Empty });
+        if (Program.Version.Length > 0)
+            name.Controls.Add(new Label { Text = $"v{Program.Version}", AutoSize = true, Font = Ui.Small, ForeColor = Ui.Muted, Margin = new Padding(1, 0, 0, 0) });
+        var brand = Ui.Row(_logo, name);
         brand.Margin = new Padding(20, 22, 0, 22);
         _nav = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Ui.Sidebar };
         _nav.Controls.Add(brand);
@@ -78,7 +82,7 @@ internal sealed class SettingsForm : Form
     /// <summary>Página visível agora (para reabrir no mesmo lugar depois de trocar o tema).</summary>
     public Type? CurrentPage => _pages.FirstOrDefault(p => p.Page.Visible).Page?.GetType();
 
-    public void Navigate(Type pageType)
+    public void Navigate(Type pageType) => Ui.WithoutRedraw(_host, () =>
     {
         foreach (var (page, button) in _pages)
         {
@@ -92,7 +96,7 @@ internal sealed class SettingsForm : Form
             }
             else page.Visible = false;
         }
-    }
+    });
 
     public void Navigate<T>() where T : Page => Navigate(typeof(T));
 
