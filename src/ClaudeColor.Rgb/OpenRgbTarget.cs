@@ -18,6 +18,50 @@ public sealed class OpenRgbTarget(Func<PcRgbConfig> pcConfig) : ILightTarget
 
     private OpenRgbConfig config() => pcConfig().OpenRgb;
     private Dictionary<string, Saved>? _saved;
+    /// <summary>
+    /// Último estado "de verdade" (fora de Direct) de cada dispositivo. Se um sinal começa com o dispositivo ainda em
+    /// Direct (restauração anterior falhou ou não terminou), restaurar o que estava lá devolveria a cor de um sinal
+    /// antigo: usa este estado no lugar.
+    /// </summary>
+    private readonly Dictionary<string, Saved> _baseline = [];
+    /// <summary>
+    /// O nome desse modo, também em disco: se o app fecha (ou cai) no meio de um sinal, os dispositivos ficam em
+    /// Direct e, sem isto, a próxima execução tomaria Direct como o estado normal deles.
+    /// </summary>
+    private readonly Dictionary<string, string> _baselineModes = LoadBaselineModes();
+
+    private static string BaselinePath => Path.Combine(Storage.Directory, "openrgb-modes.json");
+
+    private static Dictionary<string, string> LoadBaselineModes()
+    {
+        try
+        {
+            return File.Exists(BaselinePath)
+                ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(BaselinePath)) ?? []
+                : [];
+        }
+        catch (Exception ex) { Storage.Log($"openrgb: {BaselinePath}: {ex.Message}"); return []; }
+    }
+
+    private void RememberBaseline(string slot, Saved s)
+    {
+        _baseline[slot] = s;
+        if (s.Mode is null || _baselineModes.GetValueOrDefault(slot) == s.Mode.Name) return;
+        _baselineModes[slot] = s.Mode.Name;
+        try { File.WriteAllText(BaselinePath, System.Text.Json.JsonSerializer.Serialize(_baselineModes, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })); }
+        catch (Exception ex) { Storage.Log($"openrgb: salvar {BaselinePath}: {ex.Message}"); }
+    }
+
+    /// <summary>Estado normal conhecido de um dispositivo que está em Direct (em memória ou, após reiniciar, do disco).</summary>
+    private Saved? KnownBaseline(string slot, OrgbController d)
+    {
+        if (_baseline.TryGetValue(slot, out var before)) return before;
+        if (!_baselineModes.TryGetValue(slot, out var name)) return null;
+        int index = d.Modes.ToList().FindIndex(m => m.Name == name);
+        return index < 0 ? null : new Saved(d.Key, index, d.Modes[index], d.Colors);
+    }
+    /// <summary>Um socket, um pedido por vez: a fila dos sinais e as telas de Dispositivos/Diagnóstico o dividem.</summary>
+    private readonly object _sync = new();
 
     public string Name => "OpenRGB";
 
@@ -60,6 +104,11 @@ public sealed class OpenRgbTarget(Func<PcRgbConfig> pcConfig) : ILightTarget
     /// <summary>Executa com reconexão única, caso o OpenRGB tenha sido reiniciado.</summary>
     private T Call<T>(Func<OpenRgbProtocolClient, T> action)
     {
+        lock (_sync) return CallUnlocked(action);
+    }
+
+    private T CallUnlocked<T>(Func<OpenRgbProtocolClient, T> action)
+    {
         try { return action(Client()); }
         catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or InvalidDataException)
         {
@@ -100,7 +149,17 @@ public sealed class OpenRgbTarget(Func<PcRgbConfig> pcConfig) : ILightTarget
                 if (!IsSelected(d, cfg)) continue;
                 if (!_saved.ContainsKey(slot))
                 {
-                    _saved[slot] = new Saved(d.Key, d.ActiveMode, d.ActiveModeData, d.Colors);
+                    var now = new Saved(d.Key, d.ActiveMode, d.ActiveModeData, d.Colors);
+                    if (now.Mode?.Name is "Direct")
+                    {
+                        if (KnownBaseline(slot, d) is { } before)
+                        {
+                            Storage.Log($"openrgb: {slot} já estava em Direct; vai voltar para '{before.Mode?.Name}'");
+                            now = before;
+                        }
+                    }
+                    else RememberBaseline(slot, now);
+                    _saved[slot] = now;
                     client.SetCustomMode(d.Id); // "Direct": permite pintar LED a LED
                 }
                 client.UpdateLeds(d.Id, Enumerable.Repeat((c.R, c.G, c.B), d.LedCount).ToList());
