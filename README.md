@@ -58,16 +58,11 @@ Precisa do [.NET 10 SDK](https://dotnet.microsoft.com/download).
 ```powershell
 git clone https://github.com/JoaoXavierDEV/claude-lamp.git claude-color
 cd claude-color
-dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o "$env:USERPROFILE\.claude-color\bin"
+dotnet publish src/ClaudeColor.App -p:PublishProfile=ClaudeColor
 & "$env:USERPROFILE\.claude-color\bin\ClaudeColor.exe"
 ```
 
-Para atualizar sem deixar nenhuma luz presa na cor de um sinal, feche o app antes (ele devolve cada dispositivo ao modo original) e publique de novo:
-
-```powershell
-& "$env:USERPROFILE\.claude-color\bin\ClaudeColor.exe" --exit
-dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o "$env:USERPROFILE\.claude-color\bin"
-```
+O perfil `ClaudeColor` (o único, o mesmo do **Publicar** do Visual Studio) publica direto em `%USERPROFILE%\.claude-color\bin`. Para atualizar, publique de novo: ele fecha o app antes (cada dispositivo volta ao modo original, sem nenhuma luz presa na cor de um sinal), guarda o exe anterior como `ClaudeColor.exe.bak` e reabre pela tarefa agendada `ClaudeColor`, que roda como administrador.
 
 Na primeira execução, a janela abre na **Visão geral**, que mostra o que falta:
 
@@ -263,7 +258,7 @@ Para outro tipo de luz, implemente `ILightTarget` (`ShowAsync` e `ReleaseAsync`)
 dotnet build
 dotnet test
 # exe único (o mesmo da instalação), numa pasta de teste:
-dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -o .\publish
+dotnet publish src/ClaudeColor.App -p:PublishProfile=ClaudeColor -o .\publish
 # prints do README (docs\*.png) com uma config de demonstração, nos dois temas:
 .\tools\screenshots.ps1
 # PNG de cada página da janela, para revisar o layout:
