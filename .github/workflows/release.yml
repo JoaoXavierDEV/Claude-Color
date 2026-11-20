@@ -49,7 +49,7 @@ jobs:
       - name: Publish
         shell: pwsh
         run: |
-          dotnet publish src/ClaudeColor.App -p:PublishProfile=win-x64 -p:Version=${{ steps.version.outputs.version }} -o out
+          dotnet publish src/ClaudeColor.App -p:PublishProfile=ClaudeColor -p:Version=${{ steps.version.outputs.version }} -o out
           $hash = (Get-FileHash out/ClaudeColor.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           # Quebra de linha LF: "sha256sum -c SHA256SUMS.txt" também funciona fora do Windows.
           [IO.File]::WriteAllText("$PWD/out/SHA256SUMS.txt", "$hash  ClaudeColor.exe`n")
