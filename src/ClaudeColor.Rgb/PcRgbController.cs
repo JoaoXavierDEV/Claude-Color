@@ -113,6 +113,9 @@ public sealed class PcRgbController : IDisposable
         private readonly object _lock = new();
         private (RgbColor Color, int Brightness)? _pendingShow;
         private bool _pendingRelease, _holding;
+        /// <summary>Se há um worker vivo. Fica sob <see cref="_lock"/>: <c>Task.IsCompleted</c> só vira true depois que o
+        /// worker solta o lock, e um comando chegando nessa janela se perdia (ninguém mais o aplicava).</summary>
+        private bool _working;
         private Task _worker = Task.CompletedTask;
 
         public string Name => inner.Name;
@@ -148,11 +151,31 @@ public sealed class PcRgbController : IDisposable
 
         private void EnsureWorker()
         {
-            if (_worker.IsCompleted) _worker = Task.Run(WorkAsync);
+            if (_working) return;
+            _working = true;
+            _worker = Task.Run(WorkAsync);
         }
+
+        /// <summary>
+        /// Espera antes de reenviar a última cor. Alguns controladores (ARGB por HID, GPU por I2C) às vezes perdem um
+        /// pacote no meio do piscar e ficam na cor/brilho anterior; reenviar uma vez, quando a fila fica quieta, corrige.
+        /// </summary>
+        private static readonly TimeSpan ReassertDelay = TimeSpan.FromMilliseconds(400);
 
         private async Task WorkAsync()
         {
+            try { await WorkLoopAsync(); }
+            catch (Exception ex)
+            {
+                // Não deveria acontecer (falhas do alvo são tratadas no laço), mas sem isto a fila morreria de vez.
+                lock (_lock) _working = false;
+                Storage.Log($"pc-rgb: {inner.Name}: fila parou: {ex.Message}");
+            }
+        }
+
+        private async Task WorkLoopAsync()
+        {
+            (RgbColor Color, int Brightness)? reassert = null;
             while (true)
             {
                 (RgbColor Color, int Brightness)? show;
@@ -163,8 +186,27 @@ public sealed class PcRgbController : IDisposable
                     release = _pendingRelease;
                     _pendingShow = null;
                     _pendingRelease = false;
-                    if (show is null && !release) return;
                 }
+                if (show is null && !release)
+                {
+                    if (reassert is null)
+                    {
+                        lock (_lock)
+                        {
+                            if (_pendingShow is not null || _pendingRelease) continue;
+                            _working = false;
+                            return;
+                        }
+                    }
+                    await Task.Delay(ReassertDelay);
+                    lock (_lock)
+                    {
+                        if (_pendingShow is not null || _pendingRelease) { reassert = null; continue; } // veio um comando novo
+                    }
+                    show = reassert;
+                    reassert = null;
+                }
+                else reassert = show; // só a cor final (sem comando depois dela) é reenviada
                 try
                 {
                     if (show is { } s)
