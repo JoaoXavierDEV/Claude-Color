@@ -29,6 +29,7 @@ Feito em **.NET 10 / Windows Forms**, para Windows. É um único executável, qu
 | Trabalhando | `UserPromptSubmit` | 🔵 azul fraco (só na lâmpada, por padrão) |
 | Ocioso (esperando você) | `Notification` (`idle_prompt`) | desativado por padrão |
 | *(interno)* você agiu | `PostToolUse` | encerra o "até você agir" |
+| *(interno)* conversa aberta ou fechada | `SessionStart` / `SessionEnd` | não acende nada: só atualiza o Discord |
 
 Cor, brilho, piscadas, intervalo e tempo para restaurar podem ser mudados por evento, na página **Sinais**. Na coluna **Manter**:
 
@@ -86,11 +87,11 @@ Em **Sinais**, cada evento tem as colunas **Notificar** e **Piscar barra** (por 
 
 ## Discord
 
-O Claude Color pode mostrar no seu perfil do Discord o que o Claude Code está fazendo, como um jogo: **"Jogando Claude Color · Aguardando você: pergunta"**, com o ícone na cor do sinal e o tempo de trabalho. Funciona com o Discord de desktop aberto; com várias sessões, mostra a mais urgente (mesma regra das luzes). "Terminou" fica 5 min e depois o status some, a menos que *Mostrar quando ocioso* esteja ligado.
+O Claude Color pode mostrar no seu perfil do Discord o que o Claude Code está fazendo, como um jogo: **"Jogando Claude Code · Aguardando você: pergunta"**, com o ícone na cor do sinal e o tempo de trabalho. Funciona com o Discord de desktop aberto; com várias sessões, mostra a conversa que você abriu ou usou por último (as luzes seguem a mais urgente). "Terminou" fica 5 min e depois o status some, a menos que *Mostrar quando ocioso* esteja ligado.
 
-Para usar: na página **Discord**, marque *Mostrar o status no Discord* e clique em *Testar*. Não precisa criar nada no Discord Developer Portal: o aplicativo "Claude Color" já vem configurado, e as imagens (GIFs animados em [`docs/discord/`](docs/discord/)) são carregadas pela URL.
+Para usar: na página **Discord**, marque *Mostrar o status no Discord* e clique em *Testar*. Não precisa criar nada no Discord Developer Portal: um aplicativo já vem configurado (o nome no topo do cartão é o dessa aplicação no Developer Portal), e as imagens (GIFs animados em [`docs/discord/`](docs/discord/)) são carregadas pela URL.
 
-Na mesma página você escolhe o que aparece e vê uma **prévia** do cartão, igual ao que vai para o Discord:
+Na mesma página você escolhe o que aparece e vê uma **prévia** do cartão, igual ao que vai para o Discord (ela também aparece na **Visão geral**). Uma conversa nova aparece no Discord assim que abre, antes de você digitar (hook `SessionStart`); trocar entre conversas já abertas não avisa os hooks, então o status só muda quando algo acontece na outra conversa:
 
 | Opção | Exemplo | Padrão |
 |---|---|---|
@@ -100,7 +101,7 @@ Na mesma página você escolhe o que aparece e vê uma **prévia** do cartão, i
 | Título da conversa | Página de perfis e solução de problemas | desligado |
 | Tokens no contexto (os mesmos do `/context`) | 128 mil tokens | desligado |
 | Nome da pasta | claude-lamp | desligado |
-| Tempo de trabalho | 12:34 decorridos | ligado |
+| Tempo de trabalho (da sua mensagem até "Terminou"; segue contando enquanto o Claude pergunta ou pede permissão) | 12:34 decorridos | ligado |
 | Botão "View on GitHub" (link do repositório; quem vê o seu perfil pode clicar) | View on GitHub | ligado |
 
 Modelo, título e tokens são lidos do transcript da sessão (o `transcript_path` que o Claude Code passa aos hooks), só as linhas novas a cada atualização. Título e pasta vêm desligados porque amigos e servidores veem o status e eles podem revelar o assunto ou o projeto.

@@ -31,7 +31,7 @@ public static class SignalPipe
         evt = ""; gen = 0; session = SessionInfo.None;
         if (line is null || line.Length > MaxLine) return false;
         var parts = line.Trim().Split(' ', 5);
-        if (parts.Length < 2 || !(ClaudeEvents.All.Contains(parts[0]) || parts[0] == ClaudeEvents.Resumed) || !long.TryParse(parts[1], out gen)) return false;
+        if (parts.Length < 2 || !(ClaudeEvents.All.Contains(parts[0]) || parts[0] == ClaudeEvents.Resumed || ClaudeEvents.IsSession(parts[0])) || !long.TryParse(parts[1], out gen)) return false;
         long window = 0;
         if (parts.Length >= 3 && !long.TryParse(parts[2], out window)) return false;
         evt = parts[0];

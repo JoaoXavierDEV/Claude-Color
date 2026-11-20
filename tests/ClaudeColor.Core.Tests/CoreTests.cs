@@ -67,6 +67,8 @@ public class EventMapperTests
     [InlineData("""{"hook_event_name":"Notification","notification_type":"elicitation_dialog"}""", ClaudeEvents.Question)]
     [InlineData("""{"hook_event_name":"Notification","message":"Claude needs your permission to use Edit"}""", ClaudeEvents.Permission)]
     [InlineData("""{"hook_event_name":"PermissionRequest","tool_name":"Bash"}""", ClaudeEvents.Permission)]
+    [InlineData("""{"hook_event_name":"SessionStart","source":"startup"}""", ClaudeEvents.SessionStart)]
+    [InlineData("""{"hook_event_name":"SessionEnd","reason":"exit"}""", ClaudeEvents.SessionEnd)]
     [InlineData("""{"hook_event_name":"PostToolUse","tool_name":"AskUserQuestion"}""", ClaudeEvents.Resumed)]
     [InlineData("""{"hook_event_name":"PostToolUse","tool_name":"Bash"}""", ClaudeEvents.Resumed)]
     public void Maps_hook_payloads(string json, string expected) => Assert.Equal(expected, EventMapper.Map(json));
@@ -74,7 +76,7 @@ public class EventMapperTests
     [Theory]
     [InlineData("""{"hook_event_name":"PreToolUse","tool_name":"Bash"}""")]
     [InlineData("""{"hook_event_name":"Notification","notification_type":"auth_success"}""")]
-    [InlineData("""{"hook_event_name":"SessionStart"}""")]
+    [InlineData("""{"hook_event_name":"PreCompact"}""")]
     [InlineData("not json")]
     [InlineData("")]
     [InlineData("[]")]

@@ -284,6 +284,31 @@ internal static class Ui
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr handle);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool RedrawWindow(IntPtr hwnd, IntPtr rect, IntPtr region, uint flags);
+
+    /// <summary>
+    /// Faz a troca dentro de <paramref name="change"/> sem mostrar etapas: congela o desenho de <paramref name="control"/>
+    /// (WM_SETREDRAW) e pinta tudo de uma vez no fim. Sem isso, cada controle filho se pinta sozinho e dá para ver a
+    /// página se montando.
+    /// </summary>
+    public static void WithoutRedraw(Control control, Action change)
+    {
+        const int WM_SETREDRAW = 0x000B;
+        const uint RDW_INVALIDATE = 0x1, RDW_ERASE = 0x4, RDW_ALLCHILDREN = 0x80, RDW_UPDATENOW = 0x100, RDW_FRAME = 0x400;
+        if (!control.IsHandleCreated) { change(); return; }
+        SendMessage(control.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+        try { change(); }
+        finally
+        {
+            SendMessage(control.Handle, WM_SETREDRAW, 1, IntPtr.Zero);
+            RedrawWindow(control.Handle, IntPtr.Zero, IntPtr.Zero, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        }
+    }
 }
 
 /// <summary>Botão redondo que mostra e escolhe uma cor.</summary>

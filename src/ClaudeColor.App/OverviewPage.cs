@@ -12,6 +12,8 @@ internal sealed class OverviewPage : Page
     private readonly PictureBox _lastDot = new() { Size = new Size(28, 28), Margin = new Padding(0, 2, 10, 2), SizeMode = PictureBoxSizeMode.Zoom };
     private readonly Label _lastText = new() { AutoSize = true, Font = Ui.CardTitle, ForeColor = Ui.Text, Margin = new Padding(0, 6, 0, 0) };
     private readonly Label _status = Ui.Status();
+    private readonly DiscordPreview _discord = new();
+    private readonly System.Windows.Forms.Timer _discordTimer = new() { Interval = 2000 };
 
     public override string NavTitle => "Visão geral";
 
@@ -34,6 +36,10 @@ internal sealed class OverviewPage : Page
         var last = Add(new Card("Último sinal"));
         last.Add(Ui.Row(_lastDot, _lastText));
 
+        var discord = Add(new Card("Discord", "O status que aparece no seu perfil do Discord agora."));
+        discord.Add(_discord, Ui.Link("Configurar o Discord", () => _navigate(typeof(DiscordPage))));
+        _discordTimer.Tick += (_, _) => { if (Visible) _discord.RefreshPreview(); else _discordTimer.Stop(); };
+
         var test = Add(new Card("Testar", "Mostra cada sinal com as cores da página Sinais e volta ao normal em até 5 s."));
         var chips = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0, 4, 0, 0), MaximumSize = new Size(760, 0) };
         foreach (var evt in SignalsPage.Order)
@@ -46,6 +52,7 @@ internal sealed class OverviewPage : Page
         }
         test.Add(chips, _status);
         _chips = chips;
+
     }
 
     private readonly FlowLayoutPanel _chips;
@@ -83,6 +90,8 @@ internal sealed class OverviewPage : Page
                 b.Image = Ui.Swatch(color);
             }
             RefreshLastSignal();
+            _discord.RefreshPreview();
+            _discordTimer.Start();
         }
     }
 

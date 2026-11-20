@@ -33,6 +33,9 @@ public static class EventMapper
                 "Notification" => MapNotification(Get("notification_type"), Get("message")),
                 // Uma ferramenta terminou: se havia algo aguardando você, você já agiu.
                 "PostToolUse" or "PostToolUseFailure" => ClaudeEvents.Resumed,
+                // Conversa aberta (antes de você digitar) ou fechada: só o Discord acompanha.
+                "SessionStart" => ClaudeEvents.SessionStart,
+                "SessionEnd" => ClaudeEvents.SessionEnd,
                 _ => null,
             };
         }
@@ -54,6 +57,40 @@ public static class EventMapper
 /// <summary>Executa um sinal: pisca, fixa a cor e, opcionalmente, restaura o estado manual depois.</summary>
 public static class SignalRunner
 {
+    /// <summary>
+    /// SessionStart/SessionEnd: registra a conversa no state (sem gerar sinal nem mexer na geração, para não cancelar
+    /// um sinal em curso). <paramref name="source"/> é o do SessionStart: startup, resume, clear ou compact.
+    /// </summary>
+    public static void TrackSession(string evt, SessionInfo session, string? source)
+    {
+        Storage.UpdateState(s =>
+        {
+            if (evt == ClaudeEvents.SessionEnd)
+            {
+                if (session.Id is { } gone)
+                {
+                    s.Sessions.Remove(gone);
+                    if (s.FocusedSession == gone) s.FocusedSession = null;
+                }
+                return;
+            }
+            var me = s.Session(session.Id);
+            if (session.Window != 0) me.Window = session.Window;
+            me.Project = session.Project ?? me.Project;
+            me.Transcript = session.TranscriptPath ?? me.Transcript;
+            if (source is "startup" or "clear")
+            {
+                // Conversa nova: nada do que havia nesta sessão vale mais.
+                me.WorkingSince = me.TaskSince = null;
+                me.WaitingFor = null;
+            }
+            s.LastSessionId = session.Id;
+            s.FocusedSession = RuntimeState.Key(session.Id); // você abriu esta conversa
+            if (session.Project is not null) s.LastProject = session.Project;
+            if (session.Window != 0) s.LastWindow = session.Window;
+        });
+    }
+
     /// <summary>Registra o sinal e devolve a geração dele (ou null se nada a fazer).</summary>
     public static long? Begin(AppConfig cfg, string evt, SessionInfo? session = null)
     {
@@ -90,8 +127,15 @@ public static class SignalRunner
                 me.Project = session.Project ?? me.Project;
                 me.Transcript = session.TranscriptPath ?? me.Transcript;
             }
-            if (evt == ClaudeEvents.Working) me.WorkingSince = sig.HoldWhileWorking ? DateTimeOffset.Now : null;
-            else if (evt is ClaudeEvents.Done or ClaudeEvents.Idle) me.WorkingSince = null;
+            if (evt == ClaudeEvents.Working)
+            {
+                me.WorkingSince = sig.HoldWhileWorking ? DateTimeOffset.Now : null;
+                me.TaskSince ??= DateTimeOffset.Now;
+                me.DoneAt = null;
+                s.FocusedSession = RuntimeState.Key(session?.Id); // você mandou uma mensagem nesta conversa
+            }
+            else if (evt is ClaudeEvents.Done or ClaudeEvents.Idle) me.WorkingSince = me.TaskSince = null;
+            if (evt == ClaudeEvents.Done) me.DoneAt = DateTimeOffset.Now;
             me.WaitingFor = sig.WaitForUser && SignalConfig.SupportsWaitForUser(evt) ? evt : null;
         });
         if (skip) { Storage.Log($"sinal '{evt}' ignorado: logo após '{state.LastSignal}'"); return null; }
@@ -112,6 +156,7 @@ public static class SignalRunner
             waited = w;
             me.WaitingFor = null;
             me.LastSeen = DateTimeOffset.Now;
+            s.FocusedSession = RuntimeState.Key(sessionId); // você respondeu nesta conversa
             s.SignalGeneration++;
             s.LastSignal = ClaudeEvents.Resumed;
             s.LastSignalAt = DateTimeOffset.Now;

@@ -59,20 +59,23 @@ public sealed record PresenceInfo(string Event, string? Project, DateTimeOffset?
     };
 
     /// <summary>
-    /// Estado atual: alguém espera você (pergunta &gt; plano &gt; permissão &gt; ocioso) &gt; alguém trabalhando &gt;
+    /// Estado atual: o da conversa em foco (<see cref="RuntimeState.FocusedSession"/>), se houver; senão, entre todas:
+    /// alguém espera você (pergunta &gt; plano &gt; permissão &gt; ocioso) &gt; alguém trabalhando &gt;
     /// "terminou" recente (até <paramref name="doneFor"/>) &gt; ocioso, com <see cref="DiscordConfig.ShowWhenIdle"/>.
     /// Null = nada a mostrar.
     /// </summary>
     public static PresenceInfo? From(RuntimeState s, AppConfig cfg, TimeSpan doneFor)
     {
+        // A conversa que você abriu ou usou por último manda, seja qual for o estado das outras.
+        if (s.FocusedSession is { } focusedId && s.Find(focusedId) is { } f) return ForSession(focusedId, f, cfg, doneFor);
         if (s.WaitingFor is { } waiting)
         {
             var (id, who) = s.Sessions.Where(x => x.Value.WaitingFor == waiting).OrderByDescending(x => x.Value.LastSeen).First();
-            return new PresenceInfo(waiting, who.Project, null, id);
+            return new PresenceInfo(waiting, who.Project, who.TaskSince, id);
         }
         var working = s.Sessions.Where(x => x.Value.WorkingSince is not null).OrderByDescending(x => x.Value.WorkingSince).FirstOrDefault();
         if (working.Value is { } w && s.IsWorking(cfg))
-            return new PresenceInfo(ClaudeEvents.Working, w.Project, w.WorkingSince, working.Key);
+            return new PresenceInfo(ClaudeEvents.Working, w.Project, w.TaskSince ?? w.WorkingSince, working.Key);
         if (s.LastSignal == ClaudeEvents.Done && s.LastSignalAt is { } at && DateTimeOffset.Now - at < doneFor)
             return new PresenceInfo(ClaudeEvents.Done, s.LastProject, null, s.LastSessionId ?? RuntimeState.DefaultSession);
         if (cfg.Discord.ShowWhenIdle)
@@ -82,6 +85,16 @@ public sealed record PresenceInfo(string Event, string? Project, DateTimeOffset?
             return new PresenceInfo(ClaudeEvents.Idle, recent.Value?.Project ?? s.LastProject, null, recent.Key);
         }
         return null;
+    }
+
+    /// <summary>O estado de uma sessão só: aguardando você &gt; trabalhando &gt; terminou há pouco &gt; ocioso (se ligado).</summary>
+    private static PresenceInfo? ForSession(string id, SessionState f, AppConfig cfg, TimeSpan doneFor)
+    {
+        if (f.WaitingFor is { } waiting) return new PresenceInfo(waiting, f.Project, f.TaskSince, id);
+        if ((f.TaskSince ?? f.WorkingSince) is { } since && DateTimeOffset.Now - since < SignalConfig.MaxWorkingHold)
+            return new PresenceInfo(ClaudeEvents.Working, f.Project, since, id);
+        if (f.DoneAt is { } done && DateTimeOffset.Now - done < doneFor) return new PresenceInfo(ClaudeEvents.Done, f.Project, null, id);
+        return cfg.Discord.ShowWhenIdle ? new PresenceInfo(ClaudeEvents.Idle, f.Project, null, id) : null;
     }
 
     private const int Max = 128; // limite do Discord para details, state e textos das imagens
@@ -101,11 +114,13 @@ public sealed record PresenceInfo(string Event, string? Project, DateTimeOffset?
         if (d.ShowTokens && x?.ContextTokens is > 0 and var tokens) parts.Add(TranscriptStats.TokenLabel(tokens));
 
         // Linha de cima: o estado (se ligado) e o título (se ligado). O ícone pequeno indica o estado de qualquer forma.
+        // Conversa recém-aberta (nada no transcript ainda): no lugar do título, para o cartão não ficar só com o nome.
+        if (title is null && Event == ClaudeEvents.Idle && x?.Title is null && x?.Model is null) title = "Nova conversa";
         var top = string.Join(" · ", new[] { d.ShowStatus ? Details(Event) : null, title }.Where(t => t is not null));
         var assets = new JsonObject
         {
             ["large_image"] = d.ImageUrl("logo"),
-            ["large_text"] = Cut(title ?? "Claude Color"),
+            ["large_text"] = Cut(title ?? "Claude Code"),
         };
         if (d.ShowStatusOrb)
         {

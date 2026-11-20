@@ -111,6 +111,36 @@ public class HookHandlerTests
         Assert.Empty(started);
     }
 
+    [Fact]
+    public void Opening_and_closing_a_conversation_only_updates_the_state()
+    {
+        Storage.SaveConfig(new AppConfig());
+        HookHandler.FindSession = json => new SessionInfo(0, "proj-nova", SessionInfo.IdFromHook(json), @"C:\t\nova.jsonl");
+        var started = new List<string>();
+        var sent = new List<(string Evt, long Gen)>();
+        HookHandler.StartProcess = (_, args) => started.Add(args);
+        HookHandler.SendToHost = (evt, gen, _) => { sent.Add((evt, gen)); return false; };
+        long generation = Storage.LoadState().SignalGeneration;
+
+        Assert.Equal(ClaudeEvents.SessionStart,
+            HookHandler.Handle("""{"hook_event_name":"SessionStart","session_id":"nova","source":"startup"}""", "x.exe"));
+        var st = Storage.LoadState();
+        Assert.Equal(generation, st.SignalGeneration); // nenhum sinal de luz
+        Assert.Equal(("nova", "proj-nova", @"C:\t\nova.jsonl"), (st.LastSessionId, st.Find("nova")?.Project, st.Find("nova")?.Transcript));
+        Assert.Equal((ClaudeEvents.SessionStart, 0L), Assert.Single(sent));
+        Assert.Empty(started); // app fechado: não abre só por isso
+
+        var cfg = new AppConfig();
+        cfg.Discord.ShowWhenIdle = true;
+        var idle = PresenceInfo.From(st, cfg, TimeSpan.FromMinutes(5))!;
+        Assert.Equal((ClaudeEvents.Idle, "nova"), (idle.Event, idle.SessionId));
+        Assert.Equal("Ocioso · Nova conversa", (string?)idle.ToActivity(cfg.Discord, "Ocioso")["details"]);
+
+        HookHandler.Handle("""{"hook_event_name":"SessionEnd","session_id":"nova","reason":"exit"}""", "x.exe");
+        Assert.Null(Storage.LoadState().Find("nova"));
+        HookHandler.FindSession = json => new SessionInfo(0x1234, SessionInfo.ProjectFromHook(json));
+    }
+
     private static AppConfig WithLamp(bool launchFromHook) => new()
     {
         LaunchFromHook = launchFromHook,
@@ -461,6 +491,58 @@ public class SessionStateTests
     private static void Reset() => Storage.UpdateState(s => s.Sessions.Clear());
 
     [Fact]
+    public void Discord_follows_the_conversation_you_opened_or_used_last()
+    {
+        Reset();
+        var cfg = WaitCfg();
+        cfg.Discord.ShowWhenIdle = true;
+        var a = new SessionInfo(0, "proj-a", "sessao-a");
+        var b = new SessionInfo(0, "proj-b", "sessao-b", @"C:\t\b.jsonl");
+        PresenceInfo Now() => PresenceInfo.From(Storage.LoadState(), cfg, TimeSpan.FromMinutes(5))!;
+
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, a);
+        Assert.Equal((ClaudeEvents.Working, "sessao-a"), (Now().Event, Now().SessionId));
+
+        // Você abre B enquanto A trabalha: o Discord mostra B.
+        SignalRunner.TrackSession(ClaudeEvents.SessionStart, b, "resume");
+        Assert.Equal((ClaudeEvents.Idle, "sessao-b"), (Now().Event, Now().SessionId));
+
+        // A termina sozinha: B continua em foco.
+        SignalRunner.Begin(cfg, ClaudeEvents.Done, a);
+        Assert.Equal("sessao-b", Now().SessionId);
+
+        // Você manda mensagem em B, ela termina: "Terminou" de B; fechar B volta para a regra geral.
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, b);
+        SignalRunner.Begin(cfg, ClaudeEvents.Done, b);
+        Assert.Equal((ClaudeEvents.Done, "sessao-b"), (Now().Event, Now().SessionId));
+        SignalRunner.TrackSession(ClaudeEvents.SessionEnd, b, null);
+        Assert.Null(Storage.LoadState().FocusedSession);
+    }
+
+    [Fact]
+    public void Task_time_runs_through_questions_and_resets_on_done()
+    {
+        Reset();
+        var cfg = WaitCfg();
+        var a = new SessionInfo(0, "proj-a", "sessao-a");
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, a);
+        var start = Storage.LoadState().Session("sessao-a").TaskSince;
+        Assert.NotNull(start);
+
+        // Pergunta e nova rodada de "trabalhando": o tempo é o da mesma tarefa.
+        SignalRunner.Begin(cfg, ClaudeEvents.Question, a);
+        var waiting = PresenceInfo.From(Storage.LoadState(), cfg, TimeSpan.FromMinutes(5))!;
+        Assert.Equal((ClaudeEvents.Question, start), (waiting.Event, waiting.Since));
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, a);
+        Assert.Equal(start, PresenceInfo.From(Storage.LoadState(), cfg, TimeSpan.FromMinutes(5))!.Since);
+
+        SignalRunner.Begin(cfg, ClaudeEvents.Done, a);
+        Assert.Null(Storage.LoadState().Session("sessao-a").TaskSince);
+        SignalRunner.Begin(cfg, ClaudeEvents.Working, a);
+        Assert.True(Storage.LoadState().Session("sessao-a").TaskSince > start);
+    }
+
+    [Fact]
     public async Task Resuming_one_session_keeps_the_other_waiting()
     {
         Reset();
@@ -554,7 +636,7 @@ public class DiscordTests
         var a = info.ToActivity(d, "Trabalhando", x);
         Assert.Equal("Trabalhando", (string?)a["details"]);
         Assert.Equal("Opus 5.5", (string?)a["state"]);
-        Assert.Equal("Claude Color", (string?)a["assets"]!["large_text"]);
+        Assert.Equal("Claude Code", (string?)a["assets"]!["large_text"]);
         Assert.Equal(1_700_000_000L, (long?)a["timestamps"]!["start"]);
         Assert.Equal(d.ImageUrl("working"), (string?)a["assets"]!["small_image"]);
 

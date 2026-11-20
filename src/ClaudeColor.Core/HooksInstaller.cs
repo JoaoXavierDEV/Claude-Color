@@ -19,6 +19,8 @@ public sealed class HooksInstaller(string? settingsPath = null)
         ("Notification", null),
         ("PreToolUse", "AskUserQuestion|ExitPlanMode"),
         ("PostToolUse", null), // detecta que você respondeu/aprovou/permitiu ("aguardar intervenção")
+        ("SessionStart", null), // conversa aberta: o Discord mostra antes de você digitar
+        ("SessionEnd", null), // conversa fechada: sai do Discord
     ];
 
     private static readonly JsonSerializerOptions Pretty = new()
